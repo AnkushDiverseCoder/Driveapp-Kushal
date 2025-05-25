@@ -39,4 +39,6 @@ yarn-error.*
 .vscode
 .idea
 
+android
+
 app-example
