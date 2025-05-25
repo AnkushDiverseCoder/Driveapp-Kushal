@@ -13,8 +13,8 @@
     "**/*.tsx",
     ".expo/types/**/*.ts",
     "expo-env.d.ts",
-    "app/_layout.tsx",
-    "app/index.tsx",
+    "app/_layout.jsx",
+    "app/index.jsx",
     "nativewind-env.d.ts"
-  ]
+, "app/(tabs)/trips.jsx", "app/(tabs)/travelForm.jsx", "app/(tabs)/profile.jsx", "app/(tabs)/home.jsx", "app/(tabs)/_layout.jsx", "app/onboarding/screen1.jsx", "app/onboarding/screen2.jsx", "app/onboarding/screen3.jsx"  ]
 }
