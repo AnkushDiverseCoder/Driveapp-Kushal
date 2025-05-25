@@ -1,14 +1,11 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, Dimensions, ScrollView } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
+import TripService from '../../services/tripService';
 
 const employees = [
-    { id: 1, name: 'Alice Johnson', trips: 24, km: 1230, revenue: '$4800' },
-    { id: 2, name: 'Bob Smith', trips: 18, km: 980, revenue: '$3600' },
-    { id: 3, name: 'Charlie Lee', trips: 30, km: 1500, revenue: '$6000' },
-    { id: 4, name: 'Diana Ross', trips: 22, km: 1100, revenue: '$4400' },
-    { id: 5, name: 'Ethan Hunt', trips: 15, km: 800, revenue: '$3200' },
-    { id: 6, name: 'Fiona Gallagher', trips: 27, km: 1350, revenue: '$5400' },
+    { $id: 1, name: 'Alice Johnson', trips: 24, km: 1230, revenue: '$4800' },
+    { $id: 2, name: 'Bob Smith', trips: 18, km: 980, revenue: '$3600' },
     // Add more dummy employees as needed
 ];
 
@@ -18,6 +15,29 @@ const cardMargin = 12;
 const cardWidth = (screenWidth - (numColumns + 1) * cardMargin) / numColumns;
 
 export default function AdminDashboard() {
+    
+    const [, setLoading] = useState(null)
+    const [, setError] = useState()
+    const [data, setData] = useState([])
+    
+    useEffect(() => {
+        fetchTrips();
+    }, [])
+    
+    const fetchTrips = async () => {
+        setLoading(true)
+        setError(null)
+        try {
+            const response = await TripService.listTrips();
+            setData(response.data)
+            console.log(response.data)
+        } catch (error) {
+            console.log(error.message)
+        } finally {
+            setLoading(false)
+        }
+    }
+    
     return (
         <ScrollView
             contentContainerStyle={{
@@ -30,7 +50,7 @@ export default function AdminDashboard() {
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }}>
                 {employees.map((emp, i) => (
                     <Animated.View
-                        key={emp.id}
+                        key={emp.$id}
                         entering={FadeInDown.delay(i * 100).duration(400)}
                         style={{
                             width: cardWidth,
@@ -66,6 +86,11 @@ export default function AdminDashboard() {
                         </View>
                     </Animated.View>
                 ))}
+            </View>
+            <View>
+                <Text>
+                    {data.length}
+                </Text>
             </View>
         </ScrollView>
     );
