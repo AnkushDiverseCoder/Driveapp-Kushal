@@ -4,7 +4,7 @@
     "slug": "Driveapp2",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/driverLogo.png",
     "scheme": "driveapp2",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
