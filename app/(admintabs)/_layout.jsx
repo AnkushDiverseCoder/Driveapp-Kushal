@@ -13,6 +13,12 @@ const tabs = [
         iconActive: 'https://img.icons8.com/ios-filled/50/16a34a/home.png',
     },
     {
+        name: 'trips',
+        title: 'Trip Details',
+        icon: 'https://img.icons8.com/ios-filled/50/6b7280/document.png',
+        iconActive: 'https://img.icons8.com/ios-filled/50/16a34a/document.png',
+    },
+    {
         name: 'signup',
         title: 'Sign Up',
         icon: 'https://img.icons8.com/ios-filled/50/6b7280/user-male-circle.png',

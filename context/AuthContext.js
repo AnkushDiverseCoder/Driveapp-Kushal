@@ -19,6 +19,7 @@ export const AuthProvider = ({ children }) => {
                 setError(null);
             } else {
                 setUser(userData);
+                return userData; // Return user data for further processing if needed
             }
         } catch (err) {
             setError(err.message || 'Failed to fetch user data. Please try again.');
@@ -66,6 +67,7 @@ export const AuthProvider = ({ children }) => {
             if (response.error) {
                 setError(response.error);
             } else {
+                console.log('Logout successful');
                 setUser(null);
             }
         } catch (err) {

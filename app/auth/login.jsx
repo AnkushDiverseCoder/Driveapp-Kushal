@@ -34,10 +34,12 @@ export default function LoginScreen() {
 
     useEffect(() => {
         if (!loading && !error && user) {
+            console.log(user)
             if (user.labels[0] === 'admin') {
                 router.replace('/(admintabs)/home'); // 👈 Navigate automatically after 2 seconds
+            }else{
+                router.replace('/(employeetabs)/home'); // 👈 Navigate automatically after 2 seconds
             }
-            router.replace('/(employeetabs)/home'); // 👈 Navigate automatically after 2 seconds
         }
 
         return () => clearTimeout(); // Cleanup on unmount
