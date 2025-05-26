@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Header from '../../components/Header';
-import { usePathname, Link, Slot } from 'expo-router';
+import { usePathname, Link, Slot} from 'expo-router';
 
 const tabs = [
     {
@@ -18,8 +18,8 @@ const tabs = [
         iconActive: 'https://img.icons8.com/ios-filled/50/16a34a/road.png',
     },
     {
-        name: 'profile',
-        title: 'Profile',
+        name: 'signup',
+        title: 'Sign Up',
         icon: 'https://img.icons8.com/ios-filled/50/6b7280/user-male-circle.png',
         iconActive: 'https://img.icons8.com/ios-filled/50/16a34a/user-male-circle.png',
     },
@@ -32,6 +32,7 @@ const tabs = [
 ];
 
 export default function TabsLayout() {
+    
     const pathname = usePathname();
     const currentRoute = pathname?.split('/').filter(Boolean).pop() || 'home';
 

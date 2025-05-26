@@ -4,16 +4,16 @@ import databaseService from "./databaseService";
 const dbId = process.env.EXPO_PUBLIC_APPWRITE_DB_ID;
 const colId = process.env.EXPO_PUBLIC_APPWRITE_COL_DAILY_ENTRY_FORM_ID;
 
-const tripService = {
-    async listTrips() {
+const dailyEntryFormService = {
+    async listDailyEntry() {
         const response = await databaseService.listDocuments(dbId, colId);
-        if(response.error) return {error:response.error};
-        return {data:response};
+        if (response.error) return { error: response.error };
+        return { data: response };
     },
-    async createTrip(data) {
-        const response = await databaseService.createDocument(dbId,colId,data,ID.unique());
-        if(response.error) return {error:response.error};
-        return {data:response,error:null};
+    async createDailyEntry(data) {
+        const response = await databaseService.createDocument(dbId, colId, data, ID.unique());
+        if (response.error) return { error: response };
+        return { data: response, error: null };
     },
     // async updateTrip(tripId, data) {
     //     const response = await databaseService.updateDocument(colId, tripId, data);
@@ -25,7 +25,7 @@ const tripService = {
     //     if(response.error) return {error:response.error};
     //     return {data:response};
     // },
-    
+
     // async getTrip(tripId) {
     //     const response = await databaseService.getDocument(dbId, colId, tripId);
     //     if(response.error) return {error:response.error};
@@ -33,4 +33,4 @@ const tripService = {
     // }
 }
 
-export default tripService;
+export default dailyEntryFormService;

@@ -1,29 +1,84 @@
-import React from 'react';
-import { View, Text, Image, TouchableOpacity, ScrollView } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, Image, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
+import authService from '../../services/authService';
+import dailyEntryFormService from '../../services/dailyEntryFormService';
 
-const adminData = {
-    name: 'John Doe',
-    email: 'admin@example.com',
-    employeeCount: 32,
-};
+const ACCENT_COLOR = '#064e3b';
+
+// Helper to check if two dates (JS Date objects) are the same day
+function isSameDay(date1, date2) {
+    return (
+        date1.getFullYear() === date2.getFullYear() &&
+        date1.getMonth() === date2.getMonth() &&
+        date1.getDate() === date2.getDate()
+    );
+}
 
 export default function Profile() {
+    const [user, setUser] = useState(null);
+    const [dailyEntryDone, setDailyEntryDone] = useState(false);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        fetchProfile();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    const fetchProfile = async () => {
+        try {
+            const currentUser = await authService.getCurrentUser();
+            if (currentUser?.email) {
+                setUser(currentUser);
+
+                const entryList = await dailyEntryFormService.listDailyEntry();
+                console.log('Daily Entries:', entryList);
+                console.log('User Details', user);
+                const today = new Date();
+
+                // entryList.data.documents is expected structure
+                const foundTodayEntry = entryList.data.find((entry) => {
+                    const entryDate = new Date(entry.$createdAt);
+                    return (
+                        isSameDay(today, entryDate) &&
+                        entry.userEmail === currentUser.email
+                    );
+                });
+
+                setDailyEntryDone(!!foundTodayEntry);
+            }
+        } catch (err) {
+            console.error('Error fetching profile:', err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    if (loading) {
+        return (
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'white' }}>
+                <ActivityIndicator size="large" color={ACCENT_COLOR} />
+            </View>
+        );
+    }
+
     return (
         <ScrollView
             contentContainerStyle={{
                 flexGrow: 1,
                 padding: 24,
-                backgroundColor: '#f0fdf4',
+                backgroundColor: 'white',
                 alignItems: 'center',
             }}
         >
-            {/* Logo */}
-            <Image
-                source={require('../../assets/driverLogo.png')}
-                style={{ width: 100, height: 100, resizeMode: 'contain', marginBottom: 24, marginTop: 16 }}
-            />
+            {/* Avatar */}
+            {user && (
+                <Image
+                    source={{ uri: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(user.name)}` }}
+                    style={{ width: 100, height: 100, borderRadius: 50, marginBottom: 24 }}
+                />
+            )}
 
-            {/* Admin Info */}
+            {/* User Info */}
             <View
                 style={{
                     width: '100%',
@@ -34,42 +89,45 @@ export default function Profile() {
                     shadowOpacity: 0.1,
                     shadowRadius: 6,
                     elevation: 4,
-                    marginBottom: 24,
+                    marginBottom: 16,
+                    borderWidth: 1,
+                    borderColor: ACCENT_COLOR,
                 }}
             >
-                <Text style={{ fontSize: 22, fontWeight: '700', color: '#065f46', marginBottom: 8 }}>
-                    {adminData.name}
+                <Text style={{ fontSize: 22, fontWeight: '700', color: ACCENT_COLOR, marginBottom: 8 }}>
+                    {user?.name}
                 </Text>
-                <Text style={{ fontSize: 16, color: '#065f46', opacity: 0.8 }}>{adminData.email}</Text>
+                <Text style={{ fontSize: 16, color: ACCENT_COLOR, opacity: 0.8 }}>{user?.email}</Text>
             </View>
 
-            {/* Employees Count */}
+            {/* Daily Entry */}
             <View
                 style={{
                     width: '100%',
-                    backgroundColor: 'white',
+                    backgroundColor: '#f0fdf4',
                     borderRadius: 16,
                     padding: 20,
                     shadowColor: '#000',
                     shadowOpacity: 0.1,
                     shadowRadius: 6,
                     elevation: 4,
-                    marginBottom: 24,
-                    alignItems: 'center',
+                    marginBottom: 16,
+                    borderLeftWidth: 6,
+                    borderLeftColor: dailyEntryDone ? '#16a34a' : '#dc2626',
                 }}
             >
-                <Text style={{ fontSize: 18, fontWeight: '600', color: '#065f46' }}>
-                    Total Employees
+                <Text style={{ fontSize: 18, fontWeight: '600', color: ACCENT_COLOR }}>
+                    Daily Entry Status
                 </Text>
                 <Text
                     style={{
-                        fontSize: 32,
+                        fontSize: 20,
                         fontWeight: 'bold',
-                        color: '#16a34a',
+                        color: dailyEntryDone ? '#16a34a' : '#dc2626',
                         marginTop: 6,
                     }}
                 >
-                    {adminData.employeeCount}
+                    {dailyEntryDone ? '✔️ Done Today' : '❌ Not Done'}
                 </Text>
             </View>
 
@@ -78,9 +136,9 @@ export default function Profile() {
                 style={{
                     width: '100%',
                     backgroundColor: '#16a34a',
-                    paddingVertical: 16,
+                    paddingVertical: 14,
                     borderRadius: 16,
-                    marginBottom: 16,
+                    marginBottom: 12,
                     alignItems: 'center',
                     shadowColor: '#000',
                     shadowOpacity: 0.2,
@@ -97,8 +155,8 @@ export default function Profile() {
             <TouchableOpacity
                 style={{
                     width: '100%',
-                    backgroundColor: '#065f46',
-                    paddingVertical: 16,
+                    backgroundColor: ACCENT_COLOR,
+                    paddingVertical: 14,
                     borderRadius: 16,
                     alignItems: 'center',
                     shadowColor: '#000',

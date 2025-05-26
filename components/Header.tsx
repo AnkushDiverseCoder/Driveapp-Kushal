@@ -1,3 +1,4 @@
+import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'expo-router';
 import React from 'react';
 import { View, Text, Image, TouchableOpacity } from 'react-native';
@@ -6,11 +7,16 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 export default function Header() {
     const insets = useSafeAreaInsets();
     const router = useRouter();
-
-    const handleLogout = () => {
-        router.push('/auth/login');
+    const { logout } = useAuth(); // Assuming you have an AuthContext for authentication
+    const handleLogout = async () => {
+        try {
+            await logout();          // call logout from your AuthContext
+            router.push('/auth/login');  // redirect to login page
+        } catch (error) {
+            console.error('Logout failed:', error);
+            // Optionally show an error message here
+        }
     };
-
     return (
         <View
             style={{

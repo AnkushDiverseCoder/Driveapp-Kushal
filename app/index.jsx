@@ -1,3 +1,4 @@
+import { useAuth } from '@/context/AuthContext';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useEffect } from 'react';
@@ -6,14 +7,30 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 
 export default function WelcomeScreen() {
   const router = useRouter();
+  const { user, loading, error } = useAuth();
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      router.replace('/(admintabs)/home'); // 👈 Navigate automatically after 2 seconds
-    }, 2000);
 
-    return () => clearTimeout(timer); // Cleanup on unmount
-  }, [router]);
+  }, [user, loading, error, router])
+  useEffect(() => {
+    if (!loading && !error && !user) {
+      setTimeout(() => {
+        router.replace('auth/login'); // 👈 Navigate automatically after 2 seconds
+      }, 2000);
+    }
+    if (!loading && !error && user) {
+      if(user.labels[0] === 'admin') {
+        setTimeout(() => {
+          router.replace('/(admintabs)/home'); // 👈 Navigate automatically after 2 seconds
+        }, 2000);
+      }
+      setTimeout(() => {
+        router.replace('/(employeetabs)/home'); // 👈 Navigate automatically after 2 seconds
+      }, 2000);
+    }
+
+    return () => clearTimeout(); // Cleanup on unmount
+  }, [router, error, loading, user]);
 
   return (
     <LinearGradient

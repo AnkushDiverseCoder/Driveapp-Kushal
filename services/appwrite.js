@@ -1,5 +1,5 @@
 import { Platform } from 'react-native';
-import { Client, Databases } from 'react-native-appwrite'
+import { Client, Databases,Account } from 'react-native-appwrite'
 
 const config = {
     endpoint: process.env.EXPO_PUBLIC_APPWRITE_ENDPOINT,
@@ -7,6 +7,7 @@ const config = {
     db: process.env.EXPO_PUBLIC_APPWRITE_DB_ID,
     col: {
         trips: process.env.EXPO_PUBLIC_APPWRITE_COL_TRIP_ID,
+        dailyEntryForm: process.env.EXPO_PUBLIC_APPWRITE_COL_DAILY_ENTRY_FORM_ID,
         // users : process.env.EXPO_PUBLIC_APPWRITE_USERS_ID
     }
 };
@@ -25,5 +26,6 @@ switch (Platform.OS) {
 }
 
 const database = new Databases(client);
+const account = new Account(client);
 
-export { client, database, config };
+export { client, database, config, account };

@@ -30,7 +30,7 @@ export default function AdminDashboard() {
         try {
             const response = await TripService.listTrips();
             setData(response.data)
-            console.log(response.data)
+            console.log(JSON.stringify(response.data))
         } catch (error) {
             console.log(error.message)
         } finally {
@@ -89,7 +89,7 @@ export default function AdminDashboard() {
             </View>
             <View>
                 <Text>
-                    {data.length}
+                    {JSON.stringify(data)}
                 </Text>
             </View>
         </ScrollView>

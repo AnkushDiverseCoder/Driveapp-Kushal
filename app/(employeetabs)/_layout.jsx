@@ -1,38 +1,72 @@
-import React from 'react';
-import { View, StyleSheet } from 'react-native';
-import { Tabs } from 'expo-router';
+import { View, Text, TouchableOpacity, Image } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Header from '../../components/Header';
-import { SafeAreaView } from 'react-native-safe-area-context'; // Use this SafeAreaView for better results
+import { usePathname, Link, Slot } from 'expo-router';
+
+const tabs = [
+    {
+        name: 'home',
+        title: 'Home',
+        icon: 'https://img.icons8.com/ios-filled/50/6b7280/home.png',
+        iconActive: 'https://img.icons8.com/ios-filled/50/16a34a/home.png',
+    },
+    {
+        name: 'trips',
+        title: 'Trips',
+        icon: 'https://img.icons8.com/ios-filled/50/6b7280/road.png',
+        iconActive: 'https://img.icons8.com/ios-filled/50/16a34a/road.png',
+    },
+    {
+        name: 'profile',
+        title: 'Profile',
+        icon: 'https://img.icons8.com/ios-filled/50/6b7280/user-male-circle.png',
+        iconActive: 'https://img.icons8.com/ios-filled/50/16a34a/user-male-circle.png',
+    },
+    {
+        name: 'travelForm',
+        title: 'Travel Form',
+        icon: 'https://img.icons8.com/ios-filled/50/6b7280/document.png',
+        iconActive: 'https://img.icons8.com/ios-filled/50/16a34a/document.png',
+    },
+];
 
 export default function TabsLayout() {
+    const pathname = usePathname();
+    const currentRoute = pathname?.split('/').filter(Boolean).pop() || 'home';
+
     return (
-        <SafeAreaView style={styles.safeArea} edges={['top']}>
-            {/* Only apply safe area to top to protect status bar */}
+        <SafeAreaView className="flex-1 bg-gray-50" edges={['top']}>
             <Header />
-            <View style={styles.container}>
-                <Tabs
-                    screenOptions={{
-                        headerShown: false,
-                        tabBarActiveTintColor: '#16a34a',
-                        tabBarInactiveTintColor: '#6b7280',
-                        tabBarStyle: { backgroundColor: '#f9fafb' },
-                        sceneContainerStyle: {
-                            paddingTop: 60, // Leave space below custom header
-                            backgroundColor: '#f9fafb',
-                        },
-                    }}
-                >
-                    <Tabs.Screen name="home" options={{ title: 'Home' }} />
-                    <Tabs.Screen name="trips" options={{ title: 'Trips' }} />
-                    <Tabs.Screen name="profile" options={{ title: 'Profile' }} />
-                    <Tabs.Screen name="travelForm" options={{ title: 'Travel Form' }} />
-                </Tabs>
+
+            <View className="flex-1 bg-gray-50">
+                <Slot />
+            </View>
+
+            <View className="flex-row h-[80px] border-t pb-5 border-gray-300 bg-white shadow-md shadow-black/5">
+                {tabs.map((tab) => {
+                    const isActive = currentRoute === tab.name;
+                    return (
+                        <Link key={tab.name} href={`${tab.name}`} asChild>
+                            <TouchableOpacity className="flex-1 items-center justify-center pt-2 pb-1.5 relative">
+                                <Image
+                                    source={{ uri: isActive ? tab.iconActive : tab.icon }}
+                                    className="w-6 h-6"
+                                    resizeMode="contain"
+                                />
+                                <Text
+                                    className={`mt-1 font-semibold text-xs ${isActive ? 'text-green-600' : 'text-gray-500'
+                                        }`}
+                                >
+                                    {tab.title}
+                                </Text>
+                                {isActive && (
+                                    <View className="absolute bottom-0 h-0.75 w-1/2 bg-green-600 rounded-sm" />
+                                )}
+                            </TouchableOpacity>
+                        </Link>
+                    );
+                })}
             </View>
         </SafeAreaView>
     );
 }
-
-const styles = StyleSheet.create({
-    safeArea: { flex: 1, backgroundColor: '#f9fafb' },
-    container: { flex: 1 },
-});
