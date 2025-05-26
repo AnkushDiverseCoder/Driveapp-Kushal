@@ -2,7 +2,7 @@ import { ID } from "react-native-appwrite";
 import databaseService from "./databaseService";
 
 const dbId = process.env.EXPO_PUBLIC_APPWRITE_DB_ID;
-const colId = process.env.EXPO_PUBLIC_APPWRITE_COL_DAILY_ENTRY_FORM_ID;
+const colId = process.env.EXPO_PUBLIC_APPWRITE_COL_TRIP_ID;
 
 const tripService = {
     async listTrips() {

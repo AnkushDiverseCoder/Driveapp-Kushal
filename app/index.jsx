@@ -8,10 +8,7 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 export default function WelcomeScreen() {
   const router = useRouter();
   const { user, loading, error } = useAuth();
-
-  useEffect(() => {
-
-  }, [user, loading, error, router])
+  
   useEffect(() => {
     if (!loading && !error && !user) {
       setTimeout(() => {
@@ -21,11 +18,11 @@ export default function WelcomeScreen() {
     if (!loading && !error && user) {
       if(user.labels[0] === 'admin') {
         setTimeout(() => {
-          router.replace('/(admintabs)/home'); // 👈 Navigate automatically after 2 seconds
+          router.replace('/admintabs/home'); // 👈 Navigate automatically after 2 seconds
         }, 2000);
       }
       setTimeout(() => {
-        router.replace('/(employeetabs)/home'); // 👈 Navigate automatically after 2 seconds
+        router.replace('/employeetabs/home'); // 👈 Navigate automatically after 2 seconds
       }, 2000);
     }
 

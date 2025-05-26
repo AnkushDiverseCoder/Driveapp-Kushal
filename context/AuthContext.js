@@ -41,9 +41,14 @@ export const AuthProvider = ({ children }) => {
                 setError(response.error);
                 return { success: false };
             }
-            // After login, fetch user info
-            await fetchCurrentUser();
-            return { success: true };
+            // After login, fetch user info with labels etc.
+            const currentUser = await fetchCurrentUser();
+            if (currentUser.error) {
+                setError(currentUser.error);
+                return { success: false };
+            }
+            setUser(currentUser);
+            return { success: true, user: currentUser }; // <-- return user object with labels
         } catch (err) {
             setError(err.message || 'Login failed. Please check your email and password.');
             return { success: false };
@@ -52,6 +57,7 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
+
     const logout = async () => {
         setLoading(true);
         setError(null);
@@ -59,8 +65,9 @@ export const AuthProvider = ({ children }) => {
             const response = await authService.logout();
             if (response.error) {
                 setError(response.error);
+            } else {
+                setUser(null);
             }
-            setUser(null);
         } catch (err) {
             setError(err.message || 'Logout failed. Please try again.');
         } finally {

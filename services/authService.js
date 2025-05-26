@@ -14,6 +14,7 @@ const authService = {
     async logout() {
         try {
             await account.deleteSession('current');
+            return { success: true };  // return something on success
         } catch (error) {
             return { error: error.message || 'Logout failed. Please try again.' };
         }

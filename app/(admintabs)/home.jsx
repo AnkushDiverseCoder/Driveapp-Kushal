@@ -30,7 +30,7 @@ export default function AdminDashboard() {
         try {
             const response = await TripService.listTrips();
             setData(response.data)
-            console.log(JSON.stringify(response.data))
+            console.log(response.data)
         } catch (error) {
             console.log(error.message)
         } finally {

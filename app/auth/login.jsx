@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StatusBar, ActivityIndicator } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { Feather } from '@expo/vector-icons';
@@ -11,7 +11,7 @@ export default function LoginScreen() {
     const [showPassword, setShowPassword] = useState(false);
 
     const [inputErrors, setInputErrors] = useState({});
-    const { login, error,user, loading } = useAuth();
+    const { login, error, loading, user } = useAuth();
     const router = useRouter();
 
     const validateInputs = () => {
@@ -32,18 +32,29 @@ export default function LoginScreen() {
         return Object.keys(errors).length === 0;
     };
 
+    useEffect(() => {
+        if (!loading && !error && user) {
+            if (user.labels[0] === 'admin') {
+                router.replace('/(admintabs)/home'); // 👈 Navigate automatically after 2 seconds
+            }
+            router.replace('/(employeetabs)/home'); // 👈 Navigate automatically after 2 seconds
+        }
+
+        return () => clearTimeout(); // Cleanup on unmount
+    }, [router, error, loading, user]);
+
     const handleLogin = async () => {
         if (!validateInputs()) return;
-    
+
         const result = await login(email, password);
         if (result?.success) {
-            if(user.labels[0] === 'admin') {
-            router.replace('/(admintabs)/home');
+            const user = result.user;
+            if (user.labels?.[0] === 'admin') {
+                router.replace('/(admintabs)/home');
+            } else {
+                router.replace('/(employeetabs)/home');
             }
-            else{
-            router.replace('/(employeetabs)/home');
-            }
-        }else{
+        } else {
             console.error('Login failed:', error);
         }
     };

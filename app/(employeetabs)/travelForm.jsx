@@ -12,6 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import tripService from '@/services/tripService';
 import CustomAlert from '@/components/CustomAlert';
+import { useAuth } from '@/context/AuthContext';
 
 const siteOptions = ['Sagility', 'Deloitte', 'Youchana', 'Cogent'];
 const tripMethods = ['pickup', 'drop'];
@@ -29,6 +30,7 @@ export default function TravelForm() {
     const [alert, setAlert] = useState({ visible: false, title: '', message: '' });
     const [errors, setErrors] = useState({});
     const [loading, setLoading] = useState(false);
+    const { user } = useAuth();
 
     const handleChange = (field, value) => {
         setForm((prev) => ({ ...prev, [field]: value }));
@@ -69,6 +71,7 @@ export default function TravelForm() {
             startKm: parseFloat(form.startKm),
             endKm: parseFloat(form.endKm),
             distanceTravelled,
+            userEmail: user.email,
             createdAt: new Date().toISOString(),
         };
 
@@ -76,7 +79,6 @@ export default function TravelForm() {
 
         try {
             const { data, error } = await tripService.createTrip(payload);
-            console.clear();
             console.log(data)
             setLoading(false);
 
