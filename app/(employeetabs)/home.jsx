@@ -10,9 +10,9 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeInDown } from 'react-native-reanimated';
-import CustomAlert from '@/components/CustomAlert';
-import dieselService from '@/services/dailyEntryFormService';
-import { useAuth } from '@/context/AuthContext';
+import CustomAlert from '../../components/CustomAlert';
+import dieselService from '../../services/dailyEntryFormService';
+import { useAuth } from '../../context/AuthContext';
 
 const vehicleTypes = {
     'Innova Crysta': 12,

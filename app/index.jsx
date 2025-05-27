@@ -1,4 +1,4 @@
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '../context/AuthContext';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useEffect } from 'react';
@@ -18,11 +18,11 @@ export default function WelcomeScreen() {
     if (!loading && !error && user) {
       if(user.labels[0] === 'admin') {
         setTimeout(() => {
-          router.replace('/admintabs/home'); // 👈 Navigate automatically after 2 seconds
+          router.replace('/(admintabs)/home'); // 👈 Navigate automatically after 2 seconds
         }, 2000);
       }
       setTimeout(() => {
-        router.replace('/employeetabs/home'); // 👈 Navigate automatically after 2 seconds
+        router.replace('/(employeetabs)/home'); // 👈 Navigate automatically after 2 seconds
       }, 2000);
     }
 

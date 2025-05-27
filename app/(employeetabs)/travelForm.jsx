@@ -10,9 +10,9 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeInDown } from 'react-native-reanimated';
-import tripService from '@/services/tripService';
-import CustomAlert from '@/components/CustomAlert';
-import { useAuth } from '@/context/AuthContext';
+import tripService from '../../services/tripService';
+import CustomAlert from '../../components/CustomAlert';
+import { useAuth } from '../../context/AuthContext';
 
 const siteOptions = ['Sagility', 'Deloitte', 'Youchana', 'Cogent'];
 const tripMethods = ['pickup', 'drop'];
