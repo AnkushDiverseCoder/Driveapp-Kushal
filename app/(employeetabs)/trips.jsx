@@ -1,123 +1,212 @@
-import React from 'react';
-import { View, Text, ScrollView } from 'react-native';
+import React, { useEffect, useState } from "react";
+import {
+    View,
+    Text,
+    TextInput,
+    Button,
+    StyleSheet,
+    Keyboard,
+    Alert,
+    ActivityIndicator,
+    TouchableWithoutFeedback,
+} from "react-native";
+import { useAuth } from "../../context/AuthContext"; // import your auth hook here
+import tripService from "../../services/tripService";
 
-const monthlySummary = [
-    { label: 'Monthly Trips', value: 128 },
-    { label: 'Total Expense', value: '$5,420' },
-    { label: 'Trips Completed', value: 110 },
-    { label: 'Trips Remaining', value: 18 },
-];
+export default function TripUpdateForm() {
+    const { user } = useAuth();
+    const userEmail = user?.email;
 
-// Dummy employee trip data
-const employeeTrips = [
-    { id: '1', name: 'Alice Johnson', tripsCompleted: 35, expense: '$1,200', kmCovered: 420 },
-    { id: '2', name: 'Bob Smith', tripsCompleted: 27, expense: '$900', kmCovered: 350 },
-    { id: '3', name: 'Carol Lee', tripsCompleted: 48, expense: '$1,700', kmCovered: 600 },
-    { id: '4', name: 'David Kim', tripsCompleted: 15, expense: '$620', kmCovered: 210 },
-    // Add more as needed
-];
+    const [trip, setTrip] = useState(null);
+    const [startKm, setStartKm] = useState("");
+    const [endKm, setEndKm] = useState("");
+    const [loading, setLoading] = useState(true);
+    const [updating, setUpdating] = useState(false);
+    const [error, setError] = useState("");
 
-export default function Trips() {
+    // Fetch latest trip on mount
+    useEffect(() => {
+        async function fetchTrip() {
+            if (!userEmail) {
+                setError("User email not found");
+                setLoading(false);
+                return;
+            }
+
+            const res = await tripService.fetchLatestUserTrip(userEmail);
+            if (res.error) {
+                setError(res.error);
+                setLoading(false);
+                return;
+            }
+            console.log(res.data)
+            const latestTrip = res.data;
+            setTrip(latestTrip);
+            setStartKm(latestTrip.startKm?.toString() || "");
+            setEndKm(latestTrip.endKm?.toString() || "");
+            setLoading(false);
+        }
+
+        fetchTrip();
+    }, [userEmail]);
+
+    const onUpdate = async () => {
+        setError("");
+
+        if (!trip) {
+            setError("No trip loaded");
+            return;
+        }
+
+        const start = Number(startKm);
+        const end = Number(endKm);
+
+        if (isNaN(start) || isNaN(end)) {
+            setError("Start Km and End Km must be valid numbers");
+            return;
+        }
+
+        if (end < start) {
+            setError("End Km cannot be less than Start Km");
+            return;
+        }
+
+        // Check if trip is already completed (both startKm and endKm > 0)
+        if (trip.startKm > 0 && trip.endKm > 0) {
+            Alert.alert(
+                "Update Not Allowed",
+                "This trip is already completed and cannot be updated."
+            );
+            return;
+        }
+
+        const distanceTravelled = end - start;
+
+        setUpdating(true);
+        const updateData = {
+            startKm: start,
+            endKm: end,
+            distanceTravelled,
+        };
+
+        const res = await tripService.updateTrip(trip.$id, updateData);
+        setUpdating(false);
+
+        if (res.error) {
+            setError(res.error);
+            return;
+        }
+
+        Keyboard.dismiss();
+
+        Alert.alert("Success", "Trip updated successfully!");
+        // Optionally you can refetch or update local state here
+    };
+
+    if (loading) {
+        return (
+            <View style={styles.center}>
+                <ActivityIndicator size="large" />
+            </View>
+        );
+    }
+
+    if (error) {
+        return (
+            <View style={styles.center}>
+                <Text style={{ color: "red" }}>{error}</Text>
+            </View>
+        );
+    }
+
+    if (!trip) {
+        return (
+            <View style={styles.center}>
+                <Text>No trip data available.</Text>
+            </View>
+        );
+    }
+
     return (
-        <ScrollView
-            contentContainerStyle={{
-                padding: 24,
-                backgroundColor: '#f0fdf4',
-                flexGrow: 1,
-            }}
-        >
-            {/* Monthly Summary Grid */}
-            <View
-                style={{
-                    flexDirection: 'row',
-                    flexWrap: 'wrap',
-                    justifyContent: 'space-between',
-                    marginBottom: 24,
-                }}
-            >
-                {monthlySummary.map((item) => (
-                    <View
-                        key={item.label}
-                        style={{
-                            backgroundColor: 'white',
-                            width: '48%',
-                            borderRadius: 16,
-                            padding: 20,
-                            marginBottom: 16,
-                            shadowColor: '#000',
-                            shadowOpacity: 0.1,
-                            shadowRadius: 6,
-                            elevation: 4,
-                        }}
-                    >
-                        <Text
-                            style={{
-                                fontSize: 16,
-                                fontWeight: '600',
-                                color: '#065f46',
-                                marginBottom: 6,
-                            }}
-                        >
-                            {item.label}
-                        </Text>
-                        <Text
-                            style={{
-                                fontSize: 28,
-                                fontWeight: 'bold',
-                                color: '#16a34a',
-                            }}
-                        >
-                            {item.value}
-                        </Text>
-                    </View>
-                ))}
-            </View>
+        <TouchableWithoutFeedback onPress={() => Keyboard.dismiss()}>
+            <View style={styles.container}>
+                {/* Site name and location display */}
+                <Text style={styles.label}>Site Name</Text>
+                <Text style={styles.readOnlyField}>{trip.siteName || "-"}</Text>
 
-            {/* Employee Trip Details Table Header */}
-            <View
-                style={{
-                    flexDirection: 'row',
-                    backgroundColor: '#065f46',
-                    paddingVertical: 12,
-                    borderTopLeftRadius: 12,
-                    borderTopRightRadius: 12,
-                    paddingHorizontal: 12,
-                    marginBottom: 0,
-                }}
-            >
-                <Text style={{ flex: 2, color: 'white', fontWeight: '600' }}>Employee</Text>
-                <Text style={{ flex: 1, color: 'white', fontWeight: '600', textAlign: 'center' }}>
-                    Trips Completed
-                </Text>
-                <Text style={{ flex: 1, color: 'white', fontWeight: '600', textAlign: 'center' }}>
-                    Expense
-                </Text>
-                <Text style={{ flex: 1, color: 'white', fontWeight: '600', textAlign: 'center' }}>
-                    Km Covered
-                </Text>
-            </View>
+                <Text style={styles.label}>Location</Text>
+                <Text style={styles.readOnlyField}>{trip.location || "-"}</Text>
+                
+                <Text style={styles.label}>Trip Id</Text>
+                <Text style={styles.readOnlyField}>{trip.tripId || "-"}</Text>
 
-            {/* Employee Trip Details Rows */}
-            {employeeTrips.map((emp) => (
-                <View
-                    key={emp.id}
-                    style={{
-                        flexDirection: 'row',
-                        backgroundColor: 'white',
-                        paddingVertical: 12,
-                        paddingHorizontal: 12,
-                        borderBottomWidth: 1,
-                        borderColor: '#e5e7eb',
-                    }}
-                >
-                    <Text style={{ flex: 2, color: '#065f46', fontWeight: '600' }}>{emp.name}</Text>
-                    <Text style={{ flex: 1, color: '#065f46', textAlign: 'center' }}>
-                        {emp.tripsCompleted}
-                    </Text>
-                    <Text style={{ flex: 1, color: '#065f46', textAlign: 'center' }}>{emp.expense}</Text>
-                    <Text style={{ flex: 1, color: '#065f46', textAlign: 'center' }}>{emp.kmCovered}</Text>
-                </View>
-            ))}
-        </ScrollView>
+                {/* Editable Start Km */}
+                <Text style={styles.label}>Start Km</Text>
+                <TextInput
+                    style={styles.input}
+                    keyboardType="numeric"
+                    value={startKm}
+                    onChangeText={setStartKm}
+                    editable={!(trip.startKm > 0 && trip.endKm > 0)} // disable if trip complete
+                    placeholder="Enter start km"
+                />
+
+                {/* Editable End Km */}
+                <Text style={styles.label}>End Km</Text>
+                <TextInput
+                    style={styles.input}
+                    keyboardType="numeric"
+                    value={endKm}
+                    onChangeText={setEndKm}
+                    editable={!(trip.startKm > 0 && trip.endKm > 0)} // disable if trip complete
+                    placeholder="Enter end km"
+                />
+
+                {error ? <Text style={styles.error}>{error}</Text> : null}
+
+                <Button
+                    title={updating ? "Updating..." : "Update Trip"}
+                    onPress={onUpdate}
+                />
+            </View>
+        </TouchableWithoutFeedback>
     );
 }
+
+const styles = StyleSheet.create({
+    container: {
+        padding: 20,
+        flex: 1,
+        backgroundColor: "#fff",
+    },
+    label: {
+        fontWeight: "bold",
+        marginTop: 20,
+        marginBottom: 5,
+    },
+    input: {
+        borderWidth: 1,
+        borderColor: "#ccc",
+        borderRadius: 5,
+        paddingHorizontal: 10,
+        paddingVertical: 8,
+        fontSize: 16,
+    },
+    readOnlyField: {
+        fontSize: 16,
+        paddingVertical: 8,
+        color: "#555",
+        backgroundColor: "#eee",
+        paddingHorizontal: 10,
+        borderRadius: 5,
+    },
+    error: {
+        color: "red",
+        marginVertical: 10,
+    },
+    center: {
+        flex: 1,
+        justifyContent: "center",
+        alignItems: "center",
+    },
+});

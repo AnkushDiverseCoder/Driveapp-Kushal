@@ -1,22 +1,17 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, Dimensions, ScrollView, ActivityIndicator } from 'react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import { View, Text, ScrollView, ActivityIndicator, TouchableOpacity, Alert } from 'react-native';
+import * as XLSX from 'xlsx';
+import * as FileSystem from 'expo-file-system'; // If using Expo
+import * as Sharing from 'expo-sharing'; // If using Expo
+
 import DailyEntryFormService from '../../services/dailyEntryFormService';
-
-const employees = [
-    { $id: 1, name: 'Alice Johnson', trips: 24, km: 1230, revenue: '$4800' },
-    { $id: 2, name: 'Bob Smith', trips: 18, km: 980, revenue: '$3600' },
-];
-
-const screenWidth = Dimensions.get('window').width;
-const numColumns = 2;
-const cardMargin = 12;
-const cardWidth = (screenWidth - (numColumns + 1) * cardMargin) / numColumns;
+import TripService from '../../services/tripService';
 
 export default function AdminDashboard() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const [data, setData] = useState([]);
+    const [tripData, setTripData] = useState([]);
 
     useEffect(() => {
         fetchTrips();
@@ -27,7 +22,9 @@ export default function AdminDashboard() {
         setError(null);
         try {
             const response = await DailyEntryFormService.listDailyEntry();
-            setData(response.data || []);
+            const response2 = await TripService.listTrips();
+            setData(response.data.documents || []);
+            setTripData(response2.data.documents || []);
         } catch (err) {
             console.log(err.message);
             setError('Failed to fetch data. Please try again later.');
@@ -35,6 +32,49 @@ export default function AdminDashboard() {
             setLoading(false);
         }
     };
+
+    // Convert JSON to XLSX and trigger download/share
+    const exportToExcel = async (jsonData, fileName) => {
+        try {
+            let dataToExport = jsonData;
+
+            if (!jsonData || jsonData.length === 0) {
+                console.log(`No data for ${fileName}, exporting headers only.`);
+                dataToExport = [{ "No Data Available": "" }];
+            } else {
+                console.log(`Exporting data for ${fileName}:`, jsonData);
+            }
+
+            // Convert JSON to worksheet
+            const ws = XLSX.utils.json_to_sheet(dataToExport);
+            // Create workbook and append worksheet
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
+
+            // Write to base64
+            const wbout = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
+
+            // File path
+            const fileUri = FileSystem.cacheDirectory + `${fileName}.xlsx`;
+
+            // Save base64 to file
+            await FileSystem.writeAsStringAsync(fileUri, wbout, {
+                encoding: FileSystem.EncodingType.Base64,
+            });
+
+            // Share
+            await Sharing.shareAsync(fileUri, {
+                mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                dialogTitle: `Export ${fileName}`,
+                UTI: 'com.microsoft.excel.xlsx',
+            });
+        } catch (error) {
+            Alert.alert('Error', 'Failed to export file.');
+            console.error('Export error:', error);
+        }
+    };
+
+
 
     const renderTable = () => {
         if (loading) {
@@ -62,11 +102,9 @@ export default function AdminDashboard() {
             );
         }
 
-        // Actual Table Rendering
         return (
             <ScrollView horizontal showsHorizontalScrollIndicator style={{ marginTop: 24 }}>
                 <View style={{ minWidth: 800 }}>
-                    {/* Table Header */}
                     <View style={styles.tableHeader}>
                         <Text style={[styles.headerText, { flex: 2 }]}>Employee Email</Text>
                         <Text style={[styles.headerText, { flex: 1, textAlign: 'center' }]}>Vehicle</Text>
@@ -76,8 +114,6 @@ export default function AdminDashboard() {
                         <Text style={[styles.headerText, { flex: 1.5, textAlign: 'center' }]}>Distance</Text>
                         <Text style={[styles.headerText, { flex: 2, textAlign: 'center' }]}>Date</Text>
                     </View>
-
-                    {/* Table Rows */}
                     {data.map((entry) => (
                         <View key={entry.$id} style={styles.tableRow}>
                             <Text style={[styles.cellText, { flex: 2 }]}>{entry.userEmail}</Text>
@@ -99,40 +135,27 @@ export default function AdminDashboard() {
     return (
         <ScrollView
             contentContainerStyle={{
-                padding: cardMargin,
+                padding: 12,
                 backgroundColor: '#ecfdf5',
                 minHeight: '100%',
             }}
             showsVerticalScrollIndicator={false}
         >
-            {/* Employee Animated Cards */}
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }}>
-                {employees.map((emp, i) => (
-                    <Animated.View
-                        key={emp.$id}
-                        entering={FadeInDown.delay(i * 100).duration(400)}
-                        style={{
-                            width: cardWidth,
-                            marginBottom: cardMargin,
-                            borderRadius: 16,
-                            backgroundColor: 'white',
-                            elevation: 4,
-                        }}
-                    >
-                        <View style={{ padding: 16 }}>
-                            <Text style={{ fontSize: 18, fontWeight: '600', color: '#065f46', marginBottom: 8 }}>
-                                {emp.name}
-                            </Text>
-                            <Text style={{ color: '#065f46', marginBottom: 4 }}>
-                                Trips Completed: {emp.trips}
-                            </Text>
-                            <Text style={{ color: '#065f46', marginBottom: 4 }}>
-                                Km Covered: {emp.km} km
-                            </Text>
-                            <Text style={{ color: '#16a34a', fontWeight: '700' }}>{emp.revenue}</Text>
-                        </View>
-                    </Animated.View>
-                ))}
+            {/* Download Buttons */}
+            <View style={{ flexDirection: 'row', justifyContent: 'space-around', marginVertical: 16 }}>
+                <TouchableOpacity
+                    onPress={() => exportToExcel(tripData, 'tripdata')}
+                    style={styles.button}
+                >
+                    <Text style={styles.buttonText}>tripdata download</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                    onPress={() => exportToExcel(data, 'dailyformdata')}
+                    style={styles.button}
+                >
+                    <Text style={styles.buttonText}>dailyformdownload</Text>
+                </TouchableOpacity>
             </View>
 
             {/* Table or States */}
@@ -142,6 +165,18 @@ export default function AdminDashboard() {
 }
 
 const styles = {
+    button: {
+        backgroundColor: '#065f46',
+        paddingVertical: 12,
+        paddingHorizontal: 24,
+        borderRadius: 8,
+        elevation: 3,
+    },
+    buttonText: {
+        color: 'white',
+        fontWeight: '600',
+        fontSize: 16,
+    },
     tableHeader: {
         flexDirection: 'row',
         backgroundColor: '#065f46',

@@ -13,6 +13,7 @@ export const AuthProvider = ({ children }) => {
         setError(null);
         try {
             const userData = await authService.getCurrentUser();
+            console.log('Current user data:', userData);
             if (userData.error) {
                 // User is not logged in or no permission, clear user state
                 setUser(null);

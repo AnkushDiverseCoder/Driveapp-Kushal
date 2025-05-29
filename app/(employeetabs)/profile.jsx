@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, Image, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
 import authService from '../../services/authService';
 import dailyEntryFormService from '../../services/dailyEntryFormService';
+import { useRouter } from 'expo-router';
+import { useAuth } from '../../context/AuthContext';
 
 const ACCENT_COLOR = '#064e3b';
 
@@ -15,7 +17,10 @@ function isSameDay(date1, date2) {
 }
 
 export default function Profile() {
-    const [user, setUser] = useState(null);
+    
+    const router = useRouter();
+    
+    const { user } = useAuth();
     const [dailyEntryDone, setDailyEntryDone] = useState(false);
     const [loading, setLoading] = useState(true);
 
@@ -28,15 +33,14 @@ export default function Profile() {
         try {
             const currentUser = await authService.getCurrentUser();
             if (currentUser?.email) {
-                setUser(currentUser);
 
                 const entryList = await dailyEntryFormService.listDailyEntry();
                 console.log('Daily Entries:', entryList);
-                console.log('User Details', user);
+                console.log('User Details', user.name);
                 const today = new Date();
 
                 // entryList.data.documents is expected structure
-                const foundTodayEntry = entryList.data.find((entry) => {
+                const foundTodayEntry = entryList.data.documents.find((entry) => {
                     const entryDate = new Date(entry.$createdAt);
                     return (
                         isSameDay(today, entryDate) &&
@@ -73,7 +77,7 @@ export default function Profile() {
             {/* Avatar */}
             {user && (
                 <Image
-                    source={{ uri: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(user.name)}` }}
+                    source={{ uri: `https://ui-avatars.com/api/?name=${user?.name}&background=random&color=fff` }}
                     style={{ width: 100, height: 100, borderRadius: 50, marginBottom: 24 }}
                 />
             )}
@@ -131,27 +135,6 @@ export default function Profile() {
                 </Text>
             </View>
 
-            {/* Buttons */}
-            <TouchableOpacity
-                style={{
-                    width: '100%',
-                    backgroundColor: '#16a34a',
-                    paddingVertical: 14,
-                    borderRadius: 16,
-                    marginBottom: 12,
-                    alignItems: 'center',
-                    shadowColor: '#000',
-                    shadowOpacity: 0.2,
-                    shadowRadius: 8,
-                    elevation: 5,
-                }}
-                onPress={() => alert('Navigate to Employee Details Update')}
-            >
-                <Text style={{ color: 'white', fontWeight: '700', fontSize: 16 }}>
-                    Update Employee Details
-                </Text>
-            </TouchableOpacity>
-
             <TouchableOpacity
                 style={{
                     width: '100%',
@@ -164,7 +147,7 @@ export default function Profile() {
                     shadowRadius: 8,
                     elevation: 5,
                 }}
-                onPress={() => alert('Navigate to Update Login Credentials')}
+                onPress={() => router .push('/(employeetabs)/auth/modifyPassword')}
             >
                 <Text style={{ color: 'white', fontWeight: '700', fontSize: 16 }}>
                     Update Login Credentials

@@ -37,7 +37,7 @@ export default function LoginScreen() {
             console.log(user)
             if (user.labels[0] === 'admin') {
                 router.replace('/(admintabs)/home'); // 👈 Navigate automatically after 2 seconds
-            }else{
+            } else {
                 router.replace('/(employeetabs)/home'); // 👈 Navigate automatically after 2 seconds
             }
         }
@@ -47,17 +47,18 @@ export default function LoginScreen() {
 
     const handleLogin = async () => {
         if (!validateInputs()) return;
-
-        const result = await login(email, password);
-        if (result?.success) {
-            const user = result.user;
-            if (user.labels?.[0] === 'admin') {
-                router.replace('/(admintabs)/home');
-            } else {
-                router.replace('/(employeetabs)/home');
+        try {
+            const result = await login(email, password);
+            if (result?.success) {
+                const user = result.user;
+                if (user.labels?.[0] === 'admin') {
+                    router.replace('/(admintabs)/home');
+                } else {
+                    router.replace('/(employeetabs)/home');
+                }
             }
-        } else {
-            console.error('Login failed:', error);
+        } catch (error) {
+            console.error('Login failed:', error.message);
         }
     };
 

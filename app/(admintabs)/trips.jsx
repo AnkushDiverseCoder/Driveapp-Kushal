@@ -7,7 +7,6 @@ import {
     TextInput,
     Animated,
     Easing,
-    Pressable,
 } from 'react-native';
 import TripService from '../../services/tripService';
 
@@ -42,7 +41,7 @@ export default function TripDetails() {
         setError(null);
         try {
             const response = await TripService.listTrips();
-            setData(response.data || []);
+            setData(response.data.documents || []);
         } catch (err) {
             setError('Failed to fetch trip data. Please try again later.');
         } finally {
