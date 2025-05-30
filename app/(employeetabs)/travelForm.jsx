@@ -17,6 +17,7 @@ import { useAuth } from '../../context/AuthContext'
 import DateTimePicker from '@react-native-community/datetimepicker'
 
 const tripMethods = ['pickup', 'drop']
+const siteOptions = ['Sagility', 'Deloitte', 'Youchana', 'Cogent'];
 
 const vehicleNumbersList = [
     { number: 'TS09UA9275', type: 'XYLO' },
@@ -125,7 +126,8 @@ export default function TravelForm() {
             const { data, error } = await tripService.createTrip(payload)
             setLoading(false)
             if (error) {
-                setAlert({ visible: true, title: 'Error', message: error.message || 'Error submitting trip.' })
+                console.log(error)
+                setAlert({ visible: true, title: 'Error', message: error.message || 'Last Trip Is Not Completed.' })
             } else {
                 setAlert({ visible: true, title: 'Success', message: 'Trip submitted successfully!' })
                 setForm({
@@ -161,14 +163,20 @@ export default function TravelForm() {
                         {errors.location && <Text className="text-red-500 mt-1">{errors.location}</Text>}
                     </Animated.View>
 
-                    <Animated.View entering={FadeInDown.delay(150).duration(300)} className="mb-4">
+                    {/* Site Name Dropdown */}
+                    <Animated.View entering={FadeInDown.delay(100).duration(300)} className="mb-4">
                         <Text className="text-[#064e3b] font-semibold text-base">Site Name</Text>
-                        <TextInput
-                            value={form.siteName}
-                            onChangeText={(text) => handleChange('siteName', text)}
-                            placeholder="Enter site name"
-                            className="border border-gray-400 rounded px-3 py-2 mt-2 text-[#064e3b]"
-                        />
+                        <View className="mt-2 bg-white border border-gray-300 rounded-xl">
+                            {siteOptions.map((option) => (
+                                <TouchableOpacity
+                                    key={option}
+                                    className={`px-4 py-3 ${form.siteName === option ? 'bg-[#e6f4f0]' : ''}`}
+                                    onPress={() => handleChange('siteName', option)}
+                                >
+                                    <Text className="text-[#064e3b]">{option}</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
                         {errors.siteName && <Text className="text-red-500 mt-1">{errors.siteName}</Text>}
                     </Animated.View>
 
