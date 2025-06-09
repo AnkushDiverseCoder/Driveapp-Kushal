@@ -34,11 +34,12 @@ export const AuthProvider = ({ children }) => {
         fetchCurrentUser();
     }, []);
 
-    const login = async (email, password) => {
+    const login = async (username, password) => {
         setLoading(true);
         setError(null);
         try {
-            const response = await authService.login(email, password);
+            const response = await authService.login(username, password);
+            console.log('Login response:', response);
             if (response.error) {
                 setError(response.error);
                 return { success: false };
@@ -78,11 +79,11 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
-    const register = async (name, email, password) => {
+    const register = async (username,email,password,label) => {
         setLoading(true);
         setError(null);
         try {
-            const response = await authService.register(name, email, password);
+            const response = await authService.register(username, email, password,label);
             if (response.error) {
                 setError(response.error);
                 return { success: false };

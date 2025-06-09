@@ -3,7 +3,6 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useEffect } from 'react';
 import { Image, Text, View } from 'react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
 
 export default function WelcomeScreen() {
   const router = useRouter();
@@ -47,16 +46,13 @@ export default function WelcomeScreen() {
       }} />
 
       {/* Logo */}
-      <Animated.View entering={FadeInDown.duration(800)} style={{ marginBottom: 32 }}>
         <Image
           source={require('../assets/driverLogo.png')}
           style={{ width: 120, height: 120 }}
           resizeMode="contain"
         />
-      </Animated.View>
 
       {/* Text */}
-      <Animated.View entering={FadeInDown.delay(200).duration(800)} style={{ marginBottom: 24 }}>
         <Text style={{
           fontSize: 32,
           fontWeight: 'bold',
@@ -74,7 +70,6 @@ export default function WelcomeScreen() {
         }}>
           Manage your drivers with ease and efficiency.
         </Text>
-      </Animated.View>
 
     </LinearGradient>
   );

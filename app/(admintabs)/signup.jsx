@@ -1,6 +1,5 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StatusBar } from 'react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigation } from '@react-navigation/native';
 import CustomAlert from '../../components/CustomAlert';
@@ -50,14 +49,12 @@ export default function SignupScreen() {
         <View style={{ flex: 1, backgroundColor: '#ffffff', padding: 24, justifyContent: 'center' }}>
             <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
 
-            <Animated.View entering={FadeInDown.duration(500)} style={{ marginBottom: 32 }}>
                 <Text style={{ fontSize: 32, fontWeight: 'bold', color: '#064e3b', textAlign: 'center' }}>
                     Create Account
                 </Text>
                 <Text style={{ color: '#4b5563', fontSize: 16, textAlign: 'center', marginTop: 8 }}>
                     Sign up to get started
                 </Text>
-            </Animated.View>
 
             {(error || inputErrors.fullName || inputErrors.email || inputErrors.password) && (
                 <Text style={{ color: 'red', textAlign: 'center', marginBottom: 12 }}>

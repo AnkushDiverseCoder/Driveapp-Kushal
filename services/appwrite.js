@@ -8,7 +8,7 @@ const config = {
     col: {
         trips: process.env.EXPO_PUBLIC_APPWRITE_COL_TRIP_ID,
         dailyEntryForm: process.env.EXPO_PUBLIC_APPWRITE_COL_DAILY_ENTRY_FORM_ID,
-        // users : process.env.EXPO_PUBLIC_APPWRITE_USERS_ID
+        users : process.env.EXPO_PUBLIC_APPWRITE_COL_USERS
     }
 };
 

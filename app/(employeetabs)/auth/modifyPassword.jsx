@@ -8,7 +8,6 @@ import {
     ActivityIndicator,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useAuth } from '../../../context/AuthContext';
 import authService from '../../../services/authService';
 
@@ -39,14 +38,12 @@ const UserProfileScreen = () => {
         <View style={{ flex: 1, backgroundColor: '#ffffff', padding: 24, justifyContent: 'center' }}>
             <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
 
-            <Animated.View entering={FadeInDown.duration(500)} style={{ marginBottom: 32 }}>
                 <Text style={{ fontSize: 32, fontWeight: 'bold', color: '#064e3b', textAlign: 'center' }}>
                     My Profile
                 </Text>
                 <Text style={{ color: '#4b5563', fontSize: 16, textAlign: 'center', marginTop: 8 }}>
                     View your account info and update your password
                 </Text>
-            </Animated.View>
 
             {message ? (
                 <Text

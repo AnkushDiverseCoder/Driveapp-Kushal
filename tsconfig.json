@@ -1,20 +1,12 @@
 {
+  "compilerOptions": {},
   "extends": "expo/tsconfig.base",
-  "compilerOptions": {
-    "strict": true,
-    "paths": {
-      "@/*": [
-        "./*"
-      ]
-    }
-  },
   "include": [
     "**/*.ts",
     "**/*.tsx",
     ".expo/types/**/*.ts",
     "expo-env.d.ts",
-    "app/_layout.jsx",
-    "app/index.jsx",
+    "nativewind-env.d.js",
     "nativewind-env.d.ts"
-, "app/(admintabs)/trips.jsx", "app/(employeetabs)/travelForm.jsx", "app/(admintabs)/profile.jsx", "app/(admintabs)/home.jsx", "app/(admintabs)/_layout.jsx", "app/onboarding/screen1.jsx", "app/onboarding/screen2.jsx", "app/onboarding/screen3.jsx"  ]
+  ]
 }

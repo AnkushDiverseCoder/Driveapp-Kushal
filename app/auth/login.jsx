@@ -1,100 +1,132 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StatusBar, ActivityIndicator } from 'react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import {
+    View,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    StatusBar,
+    Image,
+    Dimensions,
+    ActivityIndicator,
+} from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
 import { useRouter } from 'expo-router';
 
+const { width, height } = Dimensions.get('window');
+
 export default function LoginScreen() {
-    const [email, setEmail] = useState('');
+    const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
-
     const [inputErrors, setInputErrors] = useState({});
+
     const { login, error, loading, user } = useAuth();
     const router = useRouter();
 
     const validateInputs = () => {
         const errors = {};
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-        if (!email) {
-            errors.email = 'Email is required';
-        } else if (!emailRegex.test(email)) {
-            errors.email = 'Enter a valid email address';
-        }
-
-        if (!password) {
-            errors.password = 'Password is required';
-        }
-
+        if (!username) errors.username = 'Username is required';
+        if (!password) errors.password = 'Password is required';
         setInputErrors(errors);
         return Object.keys(errors).length === 0;
     };
 
     useEffect(() => {
         if (!loading && !error && user) {
-            console.log(user)
-            if (user.labels[0] === 'admin') {
-                router.replace('/(admintabs)/home'); // 👈 Navigate automatically after 2 seconds
-            } else {
-                router.replace('/(employeetabs)/home'); // 👈 Navigate automatically after 2 seconds
+            const role = user.labels?.[0] || '';
+            switch (role.toLowerCase()) {
+                case 'admin':
+                    router.replace('/(admintabs)/home');
+                    break;
+                case 'employee':
+                    router.replace('/(employeetabs)/home');
+                    break;
+                default:
+                    router.replace('/auth/login');
+                    break;
             }
         }
-
-        return () => clearTimeout(); // Cleanup on unmount
     }, [router, error, loading, user]);
 
     const handleLogin = async () => {
         if (!validateInputs()) return;
+
         try {
-            const result = await login(email, password);
+            setInputErrors({});
+            const result = await login(username, password);
+
             if (result?.success) {
-                const user = result.user;
-                if (user.labels?.[0] === 'admin') {
-                    router.replace('/(admintabs)/home');
-                } else {
-                    router.replace('/(employeetabs)/home');
+                const role = result.user.labels?.[0] || '';
+                switch (role.toLowerCase()) {
+                    case 'admin':
+                        router.replace('/(admintabs)/home');
+                        break;
+                    case 'employee':
+                        router.replace('/(employeetabs)/home');
+                        break;
+                    default:
+                        router.replace('/auth/login');
+                        break;
                 }
             }
-        } catch (error) {
-            console.error('Login failed:', error.message);
+        } catch (err) {
+            console.error('Login failed:', err.message);
         }
     };
 
     return (
-        <View style={{ flex: 1, backgroundColor: '#ffffff', padding: 24, justifyContent: 'center' }}>
-            <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+        <View
+            style={{
+                flex: 1,
+                backgroundColor: '#f0fdf4',
+                justifyContent: 'center',
+                padding: 24,
+            }}
+        >
+            <StatusBar barStyle="dark-content" backgroundColor="#f0fdf4" />
 
-            <Animated.View entering={FadeInDown.duration(500)} style={{ marginBottom: 32 }}>
-                <Text style={{ fontSize: 32, fontWeight: 'bold', color: '#064e3b', textAlign: 'center' }}>
-                    Login to Your Account
-                </Text>
-                <Text style={{ color: '#4b5563', fontSize: 16, textAlign: 'center', marginTop: 8 }}>
-                    Welcome back! Please enter your details.
-                </Text>
-            </Animated.View>
+            {/* Logo */}
+            <View style={{ alignItems: 'center', marginBottom: 24 }}>
+                <Image
+                    source={require('../../assets/driverLogo.png')}
+                    style={{
+                        width: 150,
+                        height: 150,
+                        resizeMode: 'contain',
+                        borderRadius: 75,
+                        backgroundColor: '#fff',
+                        shadowColor: '#000',
+                        shadowOffset: { width: 0, height: 4 },
+                        shadowOpacity: 0.2,
+                        shadowRadius: 6,
+                        elevation: 5,
+                    }}
+                />
+            </View>
 
-            {/* {(error || inputErrors.email || inputErrors.password) && (
-                <Text style={{ color: 'red', textAlign: 'center', marginBottom: 12 }}>
-                    {error || inputErrors.email || inputErrors.password}
-                </Text>
-            )} */}
+            {/* Welcome Text */}
+            <Text style={{ fontSize: 28, fontWeight: 'bold', color: '#064e3b', textAlign: 'center' }}>
+                Login to Your Account
+            </Text>
+            <Text style={{ color: '#4b5563', fontSize: 16, textAlign: 'center', marginTop: 8 }}>
+                Welcome back! Please enter your username and password.
+            </Text>
 
+            {/* Form */}
             <View style={{ gap: 16 }}>
                 <TextInput
-                    placeholder="Email"
+                    placeholder="Username"
                     placeholderTextColor="#9ca3af"
-                    value={email}
+                    value={username}
                     onChangeText={(text) => {
-                        setEmail(text);
-                        setInputErrors((prev) => ({ ...prev, email: null }));
+                        setUsername(text);
+                        setInputErrors((prev) => ({ ...prev, username: null }));
                     }}
                     autoCapitalize="none"
-                    keyboardType="email-address"
                     style={{
                         borderWidth: 1,
-                        borderColor: inputErrors.email ? 'red' : '#e5e7eb',
+                        borderColor: inputErrors.username ? 'red' : '#e5e7eb',
                         borderRadius: 12,
                         paddingVertical: 12,
                         paddingHorizontal: 16,
@@ -126,11 +158,7 @@ export default function LoginScreen() {
                     />
                     <TouchableOpacity
                         onPress={() => setShowPassword(!showPassword)}
-                        style={{
-                            position: 'absolute',
-                            right: 16,
-                            top: 12,
-                        }}
+                        style={{ position: 'absolute', right: 16, top: 12 }}
                     >
                         <Feather name={showPassword ? 'eye-off' : 'eye'} size={22} color="#6b7280" />
                     </TouchableOpacity>
@@ -152,9 +180,7 @@ export default function LoginScreen() {
                     {loading ? (
                         <ActivityIndicator color="white" />
                     ) : (
-                        <Text style={{ color: 'white', fontWeight: '600', fontSize: 16 }}>
-                            Log In
-                        </Text>
+                        <Text style={{ color: 'white', fontWeight: '600', fontSize: 16 }}>Log In</Text>
                     )}
                 </TouchableOpacity>
             </View>
