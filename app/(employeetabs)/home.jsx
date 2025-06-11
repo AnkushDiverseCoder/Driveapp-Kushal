@@ -330,7 +330,7 @@ export default function DieselForm() {
                         <TouchableOpacity
                             onPress={handleSubmit}
                             disabled={loading}
-                            className={`bg-[#064e3b] rounded-xl py-4 items-center shadow-md ${loading ? 'opacity-50' : 'opacity-100'
+                            className={`bg-[#064e3b] rounded-xl mt-4 py-4 items-center shadow-sm ${loading ? 'opacity-50' : 'opacity-100'
                                 }`}
                         >
                             <Text className="text-white text-xl font-semibold">

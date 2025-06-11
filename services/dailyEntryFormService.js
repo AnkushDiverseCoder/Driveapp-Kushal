@@ -21,7 +21,6 @@ const dailyEntryFormService = {
                 };
             }
 
-            // Query for the last entry for the same vehicle number
             const query = [
                 Query.equal('vehicleNumber', data.vehicleNumber),
                 Query.orderDesc('$createdAt'),
@@ -36,7 +35,6 @@ const dailyEntryFormService = {
 
             const lastEntry = lastEntryResponse.documents?.[0];
 
-            // Validate new meter reading
             if (lastEntry) {
                 if (Number(data.meterReading) <= Number(lastEntry.meterReading)) {
                     return {
@@ -45,23 +43,50 @@ const dailyEntryFormService = {
                 }
             }
 
-            // Create new entry
             const createResponse = await databaseService.createDocument(dbId, colId, ID.unique(), data);
-
-            if (createResponse.error) {
-                return { error: createResponse.error };
-            }
-
-            return { data: createResponse, error: null };
+            if (createResponse.error) return { error: createResponse.error };
+            return { data: createResponse };
         } catch (err) {
             return { error: new Error('Unexpected error occurred: ' + err.message) };
         }
+    },
+
+    async fetchByDateOnly(targetDateStr) {
+        const start = new Date(targetDateStr);
+        const end = new Date(start);
+        end.setDate(end.getDate() + 1);
+
+        const response = await databaseService.listDocuments(dbId, colId, [
+            Query.greaterThanEqual("$createdAt", start.toISOString()),
+            Query.lessThan("$createdAt", end.toISOString()),
+        ]);
+
+        if (response.error) return { error: response.error };
+        return { data: response.documents };
+    },
+
+    async fetchByUserOnly(userEmail) {
+        const response = await databaseService.listDocuments(dbId, colId, [
+            Query.equal("userEmail", userEmail),
+        ]);
+        if (response.error) return { error: response.error };
+        return { data: response.documents };
+    },
+
+    async fetchByUserAndDate(userEmail, targetDateStr) {
+        const start = new Date(targetDateStr);
+        const end = new Date(start);
+        end.setDate(end.getDate() + 1);
+
+        const response = await databaseService.listDocuments(dbId, colId, [
+            Query.equal("userEmail", userEmail),
+            Query.greaterThanEqual("$createdAt", start.toISOString()),
+            Query.lessThan("$createdAt", end.toISOString()),
+        ]);
+
+        if (response.error) return { error: response.error };
+        return { data: response.documents };
     }
-
-
-    // Add update/delete methods if needed
-    // async updateEntry(entryId, data) { ... },
-    // async deleteEntry(entryId) { ... }
 };
 
 export default dailyEntryFormService;

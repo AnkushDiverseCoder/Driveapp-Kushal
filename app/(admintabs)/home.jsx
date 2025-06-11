@@ -1,215 +1,312 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, ActivityIndicator, TouchableOpacity, Alert } from 'react-native';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
+import { useEffect, useState } from 'react';
+import {
+    View,
+    Text,
+    ScrollView,
+    TextInput,
+    TouchableOpacity,
+    ActivityIndicator,
+    Alert,
+    Modal,
+} from 'react-native';
 import * as XLSX from 'xlsx';
-import * as FileSystem from 'expo-file-system'; // If using Expo
-import * as Sharing from 'expo-sharing'; // If using Expo
+import DateTimePickerModal from 'react-native-modal-datetime-picker';
 
-import DailyEntryFormService from '../../services/dailyEntryFormService';
-import TripService from '../../services/tripService';
+import authService from '../../services/authService';
+import dailyEntryFormService from '../../services/dailyEntryFormService';
+import tripService from '../../services/tripService';
 
 export default function AdminDashboard() {
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState(null);
-    const [data, setData] = useState([]);
-    const [tripData, setTripData] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [exportingDaily, setExportingDaily] = useState(false);
+    const [exportingTrip, setExportingTrip] = useState(false);
+    const [userModalVisible, setUserModalVisible] = useState(false);
+
+    const [users, setUsers] = useState([]);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [selectedUser, setSelectedUser] = useState(null);
+    const [selectedDate, setSelectedDate] = useState(null);
+    const [isDatePickerVisible, setDatePickerVisibility] = useState(false);
+    const [allDailyEntries, setAllDailyEntries] = useState([]);
+    const [allTrips, setAllTrips] = useState([]);
+    const [currentUser, setCurrentUser] = useState(null);
 
     useEffect(() => {
-        fetchTrips();
+        fetchAllData();
     }, []);
 
-    const fetchTrips = async () => {
-        setLoading(true);
-        setError(null);
+    const fetchAllData = async () => {
         try {
-            const response = await DailyEntryFormService.listDailyEntry();
-            const response2 = await TripService.listTrips();
-            setData(response.data.documents || []);
-            setTripData(response2.data.documents || []);
+            const current = await authService.getCurrentUser();
+            const allUsers = await authService.fetchAllUsers();
+            const uniqueUsers = Array.from(new Map(allUsers.data.map(u => [u.email, u])).values());
+            setCurrentUser(current);
+            setUsers(uniqueUsers);
+
+            const dailyRes = await dailyEntryFormService.listDailyEntry();
+            const tripRes = await tripService.listTrips();
+            setAllDailyEntries(dailyRes?.data?.documents || []);
+            setAllTrips(tripRes?.data?.documents || []);
         } catch (err) {
-            console.log(err.message);
-            setError('Failed to fetch data. Please try again later.');
+            Alert.alert('Error', err?.message || 'Failed to fetch data');
         } finally {
             setLoading(false);
         }
     };
 
-    // Convert JSON to XLSX and trigger download/share
     const exportToExcel = async (jsonData, fileName) => {
         try {
-            let dataToExport = jsonData;
-
-            if (!jsonData || jsonData.length === 0) {
-                console.log(`No data for ${fileName}, exporting headers only.`);
-                dataToExport = [{ "No Data Available": "" }];
-            } else {
-                console.log(`Exporting data for ${fileName}:`, jsonData);
-            }
-
-            // Convert JSON to worksheet
-            const ws = XLSX.utils.json_to_sheet(dataToExport);
-            // Create workbook and append worksheet
+            const data = jsonData.length ? jsonData : [{ "No Data": "No records found" }];
+            const ws = XLSX.utils.json_to_sheet(data);
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
-
-            // Write to base64
             const wbout = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
-
-            // File path
-            const fileUri = FileSystem.cacheDirectory + `${fileName}.xlsx`;
-
-            // Save base64 to file
-            await FileSystem.writeAsStringAsync(fileUri, wbout, {
+            const uri = FileSystem.cacheDirectory + `${fileName}.xlsx`;
+            await FileSystem.writeAsStringAsync(uri, wbout, {
                 encoding: FileSystem.EncodingType.Base64,
             });
-
-            // Share
-            await Sharing.shareAsync(fileUri, {
+            await Sharing.shareAsync(uri, {
                 mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
                 dialogTitle: `Export ${fileName}`,
                 UTI: 'com.microsoft.excel.xlsx',
             });
-        } catch (error) {
-            Alert.alert('Error', 'Failed to export file.');
-            console.error('Export error:', error);
+        } catch (e) {
+            Alert.alert('Export Failed', e?.message || 'Unknown error occurred');
         }
     };
 
+    const exportDailyEntry = async () => {
+        setExportingDaily(true);
+        try {
+            let result = [];
+            if (selectedUser && selectedDate) {
+                const res = await dailyEntryFormService.fetchByUserAndDate(
+                    selectedUser.email,
+                    selectedDate.toDateString()
+                );
+                result = res.data || [];
+            } else if (selectedUser) {
+                const res = await dailyEntryFormService.fetchByUserOnly(selectedUser.email);
+                result = res.data || [];
+            } else if (selectedDate) {
+                const res = await dailyEntryFormService.fetchByDateOnly(selectedDate.toDateString());
+                result = res.data || [];
+            } else {
+                result = allDailyEntries;
+            }
 
-
-    const renderTable = () => {
-        if (loading) {
-            return (
-                <View style={styles.stateContainer}>
-                    <ActivityIndicator size="large" color="#065f46" />
-                    <Text style={styles.stateText}>Loading trip data...</Text>
-                </View>
-            );
+            await exportToExcel(result, 'daily-entry');
+        } catch (err) {
+            Alert.alert('Error Exporting Daily Entry', err?.message);
+        } finally {
+            setExportingDaily(false);
         }
+    };
 
-        if (error) {
-            return (
-                <View style={styles.stateContainer}>
-                    <Text style={[styles.stateText, { color: 'red' }]}>{error}</Text>
-                </View>
-            );
+    const exportTripDetails = async () => {
+        setExportingTrip(true);
+        try {
+            let result = [];
+            if (selectedUser && selectedDate) {
+                const res = await tripService.fetchTripsByDate(
+                    selectedUser.email,
+                    selectedDate.toDateString()
+                );
+                result = res.data?.allTrips || [];
+            } else if (selectedUser) {
+                const res = await tripService.fetchTripsByUserOnly(selectedUser.email);
+                result = res.data || [];
+            } else if (selectedDate) {
+                const res = await tripService.fetchTripsByDateOnly(selectedDate.toDateString());
+                result = res.data || [];
+            } else {
+                result = allTrips;
+            }
+
+            await exportToExcel(result, 'trip-details');
+        } catch (err) {
+            Alert.alert('Error Exporting Trip Details', err?.message);
+        } finally {
+            setExportingTrip(false);
         }
+    };
 
-        if (data.length === 0) {
-            return (
-                <View style={styles.stateContainer}>
-                    <Text style={styles.stateText}>No trip data available.</Text>
-                </View>
-            );
-        }
+    const filteredUsers = users.filter((u) =>
+        u.username?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        u.email?.toLowerCase().includes(searchQuery.toLowerCase())
+    );
 
+    if (loading) {
         return (
-            <ScrollView horizontal showsHorizontalScrollIndicator style={{ marginTop: 24 }}>
-                <View style={{ minWidth: 800 }}>
-                    <View style={styles.tableHeader}>
-                        <Text style={[styles.headerText, { flex: 2 }]}>Employee Email</Text>
-                        <Text style={[styles.headerText, { flex: 1, textAlign: 'center' }]}>Vehicle</Text>
-                        <Text style={[styles.headerText, { flex: 1, textAlign: 'center' }]}>Meter</Text>
-                        <Text style={[styles.headerText, { flex: 1, textAlign: 'center' }]}>Fuel (L)</Text>
-                        <Text style={[styles.headerText, { flex: 1, textAlign: 'center' }]}>Mileage</Text>
-                        <Text style={[styles.headerText, { flex: 1.5, textAlign: 'center' }]}>Distance</Text>
-                        <Text style={[styles.headerText, { flex: 2, textAlign: 'center' }]}>Date</Text>
-                    </View>
-                    {data.map((entry) => (
-                        <View key={entry.$id} style={styles.tableRow}>
-                            <Text style={[styles.cellText, { flex: 2 }]}>{entry.userEmail}</Text>
-                            <Text style={[styles.cellText, { flex: 1, textAlign: 'center' }]}>{entry.vehicleType}</Text>
-                            <Text style={[styles.cellText, { flex: 1, textAlign: 'center' }]}>{entry.meterReading}</Text>
-                            <Text style={[styles.cellText, { flex: 1, textAlign: 'center' }]}>{entry.fuelQuantity}</Text>
-                            <Text style={[styles.cellText, { flex: 1, textAlign: 'center' }]}>{entry.mileage}</Text>
-                            <Text style={[styles.cellText, { flex: 1.5, textAlign: 'center' }]}>{entry.totalDistance}</Text>
-                            <Text style={[styles.cellText, { flex: 2, textAlign: 'center' }]}>
-                                {new Date(entry.createdAt).toLocaleDateString()}
-                            </Text>
-                        </View>
-                    ))}
-                </View>
-            </ScrollView>
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f0fdf4' }}>
+                <ActivityIndicator size="large" color="#064e3b" />
+                <Text style={{ marginTop: 10 }}>Loading dashboard...</Text>
+            </View>
         );
-    };
+    }
 
     return (
-        <ScrollView
-            contentContainerStyle={{
-                padding: 12,
-                backgroundColor: '#ecfdf5',
-                minHeight: '100%',
-            }}
-            showsVerticalScrollIndicator={false}
-        >
-            {/* Download Buttons */}
-            <View style={{ flexDirection: 'row', justifyContent: 'space-around', marginVertical: 16 }}>
-                <TouchableOpacity
-                    onPress={() => exportToExcel(tripData, 'tripdata')}
-                    style={styles.button}
-                >
-                    <Text style={styles.buttonText}>tripdata download</Text>
-                </TouchableOpacity>
+        <ScrollView contentContainerStyle={{ padding: 16, backgroundColor: '#f0fdf4', minHeight: '100%' }}>
+            <Text style={{ fontSize: 22, fontWeight: '700', color: '#064e3b', textAlign: 'center', marginBottom: 16 }}>
+                Admin Dashboard
+            </Text>
 
-                <TouchableOpacity
-                    onPress={() => exportToExcel(data, 'dailyformdata')}
-                    style={styles.button}
-                >
-                    <Text style={styles.buttonText}>dailyformdownload</Text>
-                </TouchableOpacity>
+            {/* Admin Info */}
+            <View style={{ backgroundColor: '#fff', borderRadius: 12, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: '#ccc', flexDirection: 'row', alignItems: 'center' }}>
+                <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: '#064e3b', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                    <Text style={{ color: '#fff', fontSize: 18, fontWeight: 'bold' }}>{currentUser?.username?.charAt(0)?.toUpperCase() || '?'}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 12, color: '#666' }}>Username</Text>
+                    <Text style={{ fontSize: 16, fontWeight: '600' }}>{currentUser?.username}</Text>
+                    <Text style={{ fontSize: 12, color: '#666', marginTop: 4 }}>Email</Text>
+                    <Text style={{ fontSize: 14 }}>{currentUser?.email}</Text>
+                </View>
             </View>
 
-            {/* Table or States */}
-            {renderTable()}
+            {/* User Picker */}
+            <Text className="text-[#064e3b] font-semibold text-base mb-1">Selected User</Text>
+            <TouchableOpacity
+                onPress={() => setUserModalVisible(true)}
+                className="bg-white border border-gray-300 rounded-xl px-4 py-3 mb-3"
+            >
+                <Text className="text-[#064e3b]">
+                    {selectedUser ? selectedUser.username : 'Choose User'}
+                </Text>
+            </TouchableOpacity>
+
+            {/* User Modal */}
+            <Modal
+                visible={userModalVisible}
+                animationType="slide"
+                onRequestClose={() => setUserModalVisible(false)}
+            >
+                <View className="flex-1 bg-[#f0fdf4] px-5 pt-6">
+                    {/* Header */}
+                    <Text className="text-[#064e3b] font-bold text-xl mb-4 text-center">Select User</Text>
+
+                    {/* Search Input */}
+                    <TextInput
+                        placeholder="Search by name or email"
+                        value={searchQuery}
+                        onChangeText={setSearchQuery}
+                        className="bg-white border border-gray-300 rounded-xl px-4 py-3 mb-4"
+                    />
+
+                    {/* List */}
+                    <ScrollView className="flex-1">
+                        {filteredUsers.length > 0 ? (
+                            filteredUsers.map((u, index) => (
+                                <TouchableOpacity
+                                    key={u.email + index}
+                                    onPress={() => {
+                                        setSelectedUser(u);
+                                        setUserModalVisible(false);
+                                    }}
+                                    className={`rounded-xl px-4 py-3 mb-2 border ${selectedUser?.email === u.email
+                                            ? 'bg-[#064e3b] border-[#064e3b]'
+                                            : 'bg-white border-gray-300'
+                                        }`}
+                                >
+                                    <Text
+                                        className={`text-base ${selectedUser?.email === u.email
+                                                ? 'text-white font-semibold'
+                                                : 'text-[#1f2937]'
+                                            }`}
+                                    >
+                                        {u.username} ({u.email})
+                                    </Text>
+                                </TouchableOpacity>
+                            ))
+                        ) : (
+                            <Text className="text-gray-500 text-center mt-10">No users found</Text>
+                        )}
+                    </ScrollView>
+
+                    {/* Close Button */}
+                    <TouchableOpacity
+                        onPress={() => setUserModalVisible(false)}
+                        className="mt-6 bg-red-600 py-3 rounded-xl items-center"
+                    >
+                        <Text className="text-white font-semibold">Close</Text>
+                    </TouchableOpacity>
+                </View>
+            </Modal>
+
+
+            {/* Date Filter */}
+            <View style={{ marginBottom: 16 }}>
+                <Text style={{ fontWeight: '600', marginBottom: 4 }}>Select Date:</Text>
+                <TouchableOpacity
+                    onPress={() => setDatePickerVisibility(true)}
+                    style={{
+                        padding: 10,
+                        borderWidth: 1,
+                        borderColor: '#ccc',
+                        borderRadius: 6,
+                        backgroundColor: '#fff',
+                    }}
+                >
+                    <Text>{selectedDate ? selectedDate.toDateString() : 'Pick a date'}</Text>
+                </TouchableOpacity>
+                {selectedDate && (
+                    <TouchableOpacity onPress={() => setSelectedDate(null)}>
+                        <Text style={{ color: '#dc2626', marginTop: 4 }}>Clear Date</Text>
+                    </TouchableOpacity>
+                )}
+            </View>
+
+            <DateTimePickerModal
+                isVisible={isDatePickerVisible}
+                mode="date"
+                onConfirm={(date) => {
+                    setSelectedDate(date);
+                    setDatePickerVisibility(false);
+                }}
+                onCancel={() => setDatePickerVisibility(false)}
+            />
+
+            {/* Export Buttons */}
+            <View style={{ marginTop: 20 }}>
+                <TouchableOpacity
+                    onPress={exportDailyEntry}
+                    disabled={exportingDaily}
+                    style={{
+                        backgroundColor: '#064e3b',
+                        padding: 12,
+                        borderRadius: 8,
+                        marginBottom: 12,
+                        alignItems: 'center',
+                        opacity: exportingDaily ? 0.7 : 1,
+                    }}
+                >
+                    {exportingDaily ? (
+                        <ActivityIndicator color="#fff" />
+                    ) : (
+                        <Text style={{ color: 'white', fontWeight: '600' }}>Export Daily Entry</Text>
+                    )}
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                    onPress={exportTripDetails}
+                    disabled={exportingTrip}
+                    style={{
+                        backgroundColor: '#064e3b',
+                        padding: 12,
+                        borderRadius: 8,
+                        alignItems: 'center',
+                        opacity: exportingTrip ? 0.7 : 1,
+                    }}
+                >
+                    {exportingTrip ? (
+                        <ActivityIndicator color="#fff" />
+                    ) : (
+                        <Text style={{ color: 'white', fontWeight: '600' }}>Export Trip Details</Text>
+                    )}
+                </TouchableOpacity>
+            </View>
         </ScrollView>
     );
 }
-
-const styles = {
-    button: {
-        backgroundColor: '#065f46',
-        paddingVertical: 12,
-        paddingHorizontal: 24,
-        borderRadius: 8,
-        elevation: 3,
-    },
-    buttonText: {
-        color: 'white',
-        fontWeight: '600',
-        fontSize: 16,
-    },
-    tableHeader: {
-        flexDirection: 'row',
-        backgroundColor: '#065f46',
-        paddingVertical: 12,
-        borderTopLeftRadius: 12,
-        borderTopRightRadius: 12,
-        paddingHorizontal: 12,
-    },
-    headerText: {
-        color: 'white',
-        fontWeight: '600',
-    },
-    tableRow: {
-        flexDirection: 'row',
-        backgroundColor: 'white',
-        paddingVertical: 12,
-        paddingHorizontal: 12,
-        borderBottomWidth: 1,
-        borderColor: '#e5e7eb',
-    },
-    cellText: {
-        color: '#065f46',
-    },
-    stateContainer: {
-        marginTop: 40,
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 16,
-    },
-    stateText: {
-        marginTop: 12,
-        fontSize: 16,
-        color: '#065f46',
-        textAlign: 'center',
-    },
-};

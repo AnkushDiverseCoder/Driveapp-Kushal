@@ -1,149 +1,215 @@
 import { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StatusBar } from 'react-native';
+import {
+    View,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    StatusBar,
+    ActivityIndicator,
+    ScrollView,
+} from 'react-native';
 import { useAuth } from '../../context/AuthContext';
-import { useNavigation } from '@react-navigation/native';
-import CustomAlert from '../../components/CustomAlert';
 
-export default function SignupScreen() {
-    const [fullName, setFullName] = useState('');
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
+export default function RegisterScreen() {
+    const [form, setForm] = useState({
+        username: '',
+        email: '',
+        password: '',
+        label: 'employee',
+    });
+
     const [inputErrors, setInputErrors] = useState({});
-    const [showSuccess, setShowSuccess] = useState(false);
-
-    const { register, error } = useAuth();
-    const navigation = useNavigation();
+    const auth = useAuth();
+    const register = auth?.register;
+    const loading = auth?.loading;
 
     const validateInputs = () => {
         const errors = {};
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        const usernameRegex = /^(?![._])[a-zA-Z0-9._]{3,20}(?<![._])$/;
 
-        if (!fullName.trim()) errors.fullName = 'Full name is required';
-        if (!email) errors.email = 'Email is required';
-        else if (!emailRegex.test(email)) errors.email = 'Invalid email format';
-        if (!password) errors.password = 'Password is required';
-        else if (password.length < 6) errors.password = 'Password must be at least 6 characters';
+        if (!form.username) {
+            errors.username = 'Username is required';
+        } else if (/\s/.test(form.username)) {
+            errors.username = 'Username cannot contain spaces';
+        } else if (!usernameRegex.test(form.username)) {
+            errors.username = 'Must be 3–20 characters (letters, numbers, ".", "_")';
+        }
+
+        if (!form.email) {
+            errors.email = 'Email is required';
+        } else if (!emailRegex.test(form.email)) {
+            errors.email = 'Invalid email format';
+        }
+
+        if (!form.password) {
+            errors.password = 'Password is required';
+        } else if (form.password.length < 6) {
+            errors.password = 'Must be at least 6 characters';
+        }
 
         setInputErrors(errors);
         return Object.keys(errors).length === 0;
     };
 
-    const handleSignup = async () => {
+    const handleRegister = async () => {
         if (!validateInputs()) return;
-        
-        const result = await register(fullName, email, password);
-        if (result?.success) {
-            setShowSuccess(true);
+        if (!register) {
+            alert('Register function not available');
+            return;
+        }
+
+        try {
+            const result = await register(
+                form.username,
+                form.email,
+                form.password,
+                [form.label]
+            );
+
+            console.log("Register result:", result);
+
+            if (result?.success) {
+                alert('Registration successful!');
+            } else {
+                alert(result?.error || 'Registration failed');
+            }
+        } catch (err) {
+            console.error('Unhandled error during registration:', err);
+            alert('Something went wrong. Please try again.');
         }
     };
 
-    const handleAlertClose = () => {
-        setShowSuccess(false);
-        navigation.reset({
-            index: 0,
-            routes: [{ name: 'Tabs', params: { screen: 'Home' } }],
-        });
-    };
-
     return (
-        <View style={{ flex: 1, backgroundColor: '#ffffff', padding: 24, justifyContent: 'center' }}>
-            <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+        <ScrollView contentContainerStyle={{ flexGrow: 1, padding: 24, justifyContent: 'center', backgroundColor: '#ffffff' }}>
+            <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
 
-                <Text style={{ fontSize: 32, fontWeight: 'bold', color: '#064e3b', textAlign: 'center' }}>
-                    Create Account
-                </Text>
-                <Text style={{ color: '#4b5563', fontSize: 16, textAlign: 'center', marginTop: 8 }}>
-                    Sign up to get started
-                </Text>
+            <Text style={{ fontSize: 28, fontWeight: 'bold', color: '#064e3b', textAlign: 'center' }}>
+                Register
+            </Text>
+            <Text style={{ color: '#4b5563', fontSize: 16, textAlign: 'center', marginTop: 8 }}>
+                Fill in your details to create an account
+            </Text>
 
-            {(error || inputErrors.fullName || inputErrors.email || inputErrors.password) && (
-                <Text style={{ color: 'red', textAlign: 'center', marginBottom: 12 }}>
-                    {error || inputErrors.fullName || inputErrors.email || inputErrors.password}
-                </Text>
-            )}
-
-            <View style={{ gap: 16 }}>
+            <View style={{ gap: 16, marginTop: 24 }}>
+                {/* Username */}
                 <TextInput
-                    placeholder="Full Name"
-                    placeholderTextColor="#9ca3af"
-                    value={fullName}
-                    onChangeText={text => {
-                        setFullName(text);
-                        setInputErrors(prev => ({ ...prev, fullName: null }));
+                    placeholder="Username"
+                    value={form.username}
+                    onChangeText={(text) => {
+                        setForm({ ...form, username: text });
+                        setInputErrors((prev) => ({ ...prev, username: null }));
                     }}
                     style={{
                         borderWidth: 1,
-                        borderColor: inputErrors.fullName ? 'red' : '#e5e7eb',
+                        borderColor: inputErrors.username ? 'red' : '#e5e7eb',
                         borderRadius: 12,
-                        paddingVertical: 12,
-                        paddingHorizontal: 16,
+                        padding: 12,
                         backgroundColor: '#f9fafb',
                         fontSize: 16,
                     }}
                 />
+                {inputErrors.username && (
+                    <Text style={{ color: 'red', marginTop: -12 }}>{inputErrors.username}</Text>
+                )}
 
+                {/* Email */}
                 <TextInput
                     placeholder="Email"
-                    placeholderTextColor="#9ca3af"
-                    keyboardType="email-address"
+                    value={form.email}
                     autoCapitalize="none"
-                    value={email}
-                    onChangeText={text => {
-                        setEmail(text);
-                        setInputErrors(prev => ({ ...prev, email: null }));
+                    keyboardType="email-address"
+                    onChangeText={(text) => {
+                        setForm({ ...form, email: text });
+                        setInputErrors((prev) => ({ ...prev, email: null }));
                     }}
                     style={{
                         borderWidth: 1,
                         borderColor: inputErrors.email ? 'red' : '#e5e7eb',
                         borderRadius: 12,
-                        paddingVertical: 12,
-                        paddingHorizontal: 16,
+                        padding: 12,
                         backgroundColor: '#f9fafb',
                         fontSize: 16,
                     }}
                 />
+                {inputErrors.email && (
+                    <Text style={{ color: 'red', marginTop: -12 }}>{inputErrors.email}</Text>
+                )}
 
+                {/* Password */}
                 <TextInput
                     placeholder="Password"
-                    placeholderTextColor="#9ca3af"
+                    value={form.password}
                     secureTextEntry
-                    value={password}
-                    onChangeText={text => {
-                        setPassword(text);
-                        setInputErrors(prev => ({ ...prev, password: null }));
+                    onChangeText={(text) => {
+                        setForm({ ...form, password: text });
+                        setInputErrors((prev) => ({ ...prev, password: null }));
                     }}
                     style={{
                         borderWidth: 1,
                         borderColor: inputErrors.password ? 'red' : '#e5e7eb',
                         borderRadius: 12,
-                        paddingVertical: 12,
-                        paddingHorizontal: 16,
+                        padding: 12,
                         backgroundColor: '#f9fafb',
                         fontSize: 16,
                     }}
                 />
+                {inputErrors.password && (
+                    <Text style={{ color: 'red', marginTop: -12 }}>{inputErrors.password}</Text>
+                )}
 
+                {/* Role Selector */}
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 }}>
+                    {['employee', 'admin'].map((role) => (
+                        <TouchableOpacity
+                            key={role}
+                            onPress={() => setForm({ ...form, label: role })}
+                            style={{
+                                flex: 1,
+                                marginHorizontal: 4,
+                                paddingVertical: 12,
+                                borderRadius: 12,
+                                backgroundColor: form.label === role ? '#064e3b' : '#f3f4f6',
+                                borderWidth: 1,
+                                borderColor: '#e5e7eb',
+                                alignItems: 'center',
+                            }}
+                        >
+                            <Text
+                                style={{
+                                    color: form.label === role ? 'white' : '#374151',
+                                    fontWeight: '600',
+                                }}
+                            >
+                                {role.charAt(0).toUpperCase() + role.slice(1)}
+                            </Text>
+                        </TouchableOpacity>
+                    ))}
+                </View>
+
+                {/* Submit Button */}
                 <TouchableOpacity
                     style={{
                         backgroundColor: '#064e3b',
                         paddingVertical: 14,
                         borderRadius: 12,
-                        marginTop: 8,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexDirection: 'row',
+                        marginTop: 16,
                     }}
-                    onPress={handleSignup}
+                    onPress={handleRegister}
+                    disabled={loading}
                 >
-                    <Text style={{ color: 'white', textAlign: 'center', fontWeight: '600', fontSize: 16 }}>
-                        Sign Up
-                    </Text>
+                    {loading ? (
+                        <ActivityIndicator color="white" />
+                    ) : (
+                        <Text style={{ color: 'white', fontWeight: '600', fontSize: 16 }}>
+                            Register
+                        </Text>
+                    )}
                 </TouchableOpacity>
             </View>
-
-            <CustomAlert
-                visible={showSuccess}
-                title="Registration Successful"
-                message="Your account has been created successfully!"
-                onClose={handleAlertClose}
-            />
-        </View>
+        </ScrollView>
     );
 }

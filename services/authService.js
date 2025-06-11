@@ -110,6 +110,17 @@ const authService = {
             return { error: error.message || 'Failed to update password.' };
         }
     },
+    
+    // ✅ NEW: Fetch all user documents from the custom Appwrite Users collection
+    async fetchAllUsers() {
+        try {
+            const response = await databaseService.listDocuments(DATABASE_ID, USERS_COLLECTION_ID);
+            if (response.error) return { error: response.error };
+            return { success: true, data: response.documents };
+        } catch (error) {
+            return { error: error.message || 'Failed to fetch users.' };
+        }
+    },
 };
 
 export default authService;
