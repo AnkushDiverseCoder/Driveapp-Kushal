@@ -1,3 +1,4 @@
+import { Query } from "react-native-appwrite";
 import { database } from "./appwrite";
 
 const databaseService = {
@@ -10,6 +11,36 @@ const databaseService = {
             return { error: error.message };
         }
     },
+    
+    // List all documents using batching (utility method)
+    async listAllDocuments(databaseId, collectionId, baseQueries = []) {
+        const batchSize = 100;
+        let allDocuments = [];
+        let offset = 0;
+
+        while (true) {
+            const paginatedQueries = [
+                ...baseQueries,
+                Query.offset(offset),
+                Query.limit(batchSize),
+            ];
+
+            const response = await this.listDocuments(databaseId, collectionId, paginatedQueries);
+
+            if (response.error) {
+                return { error: response.error };
+            }
+
+            const docs = response.documents || [];
+            allDocuments.push(...docs);
+
+            if (docs.length < batchSize) break;
+            offset += batchSize;
+        }
+
+        return { data: allDocuments };
+    },
+
 
     // Get a single document
     async getDocument(databaseId, collectionId, documentId) {
@@ -50,6 +81,8 @@ const databaseService = {
             return { error: error.message };
         }
     }
+    
+    
 };
 
 export default databaseService;

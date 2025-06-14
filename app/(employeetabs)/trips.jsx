@@ -10,7 +10,7 @@ import {
     ActivityIndicator,
     TouchableWithoutFeedback,
 } from "react-native";
-import { useAuth } from "../../context/AuthContext"; // import your auth hook here
+import { useAuth } from "../../context/AuthContext";
 import tripService from "../../services/tripService";
 
 export default function TripUpdateForm() {
@@ -18,13 +18,15 @@ export default function TripUpdateForm() {
     const userEmail = user?.email;
 
     const [trip, setTrip] = useState(null);
+    const [tripId, setTripId] = useState("");
     const [startKm, setStartKm] = useState("");
     const [endKm, setEndKm] = useState("");
     const [loading, setLoading] = useState(true);
     const [updating, setUpdating] = useState(false);
     const [error, setError] = useState("");
 
-    // Fetch latest trip on mount
+    const tripCompleted = trip?.startKm > 0 && trip?.endKm > 0;
+
     useEffect(() => {
         async function fetchTrip() {
             if (!userEmail) {
@@ -39,9 +41,10 @@ export default function TripUpdateForm() {
                 setLoading(false);
                 return;
             }
-            console.log(res.data)
+
             const latestTrip = res.data;
             setTrip(latestTrip);
+            setTripId(latestTrip.tripId || "");
             setStartKm(latestTrip.startKm?.toString() || "");
             setEndKm(latestTrip.endKm?.toString() || "");
             setLoading(false);
@@ -71,8 +74,7 @@ export default function TripUpdateForm() {
             return;
         }
 
-        // Check if trip is already completed (both startKm and endKm > 0)
-        if (trip.startKm > 0 && trip.endKm > 0) {
+        if (tripCompleted) {
             Alert.alert(
                 "Update Not Allowed",
                 "This trip is already completed and cannot be updated."
@@ -87,6 +89,7 @@ export default function TripUpdateForm() {
             startKm: start,
             endKm: end,
             distanceTravelled,
+            tripId: tripId.trim(),
         };
 
         const res = await tripService.updateTrip(trip.$id, updateData);
@@ -98,23 +101,13 @@ export default function TripUpdateForm() {
         }
 
         Keyboard.dismiss();
-
         Alert.alert("Success", "Trip updated successfully!");
-        // Optionally you can refetch or update local state here
     };
 
     if (loading) {
         return (
             <View style={styles.center}>
                 <ActivityIndicator size="large" />
-            </View>
-        );
-    }
-
-    if (error) {
-        return (
-            <View style={styles.center}>
-                <Text style={{ color: "red" }}>{error}</Text>
             </View>
         );
     }
@@ -130,35 +123,41 @@ export default function TripUpdateForm() {
     return (
         <TouchableWithoutFeedback onPress={() => Keyboard.dismiss()}>
             <View style={styles.container}>
-                {/* Site name and location display */}
                 <Text style={styles.label}>Site Name</Text>
                 <Text style={styles.readOnlyField}>{trip.siteName || "-"}</Text>
 
                 <Text style={styles.label}>Location</Text>
                 <Text style={styles.readOnlyField}>{trip.location || "-"}</Text>
-                
-                <Text style={styles.label}>Trip Id</Text>
-                <Text style={styles.readOnlyField}>{trip.tripId || "-"}</Text>
 
-                {/* Editable Start Km */}
+                {/* Editable Trip ID */}
+                <Text style={styles.label}>Trip ID</Text>
+                <TextInput
+                    style={styles.input}
+                    value={tripId}
+                    onChangeText={setTripId}
+                    editable={!tripCompleted}
+                    placeholder="Enter trip ID"
+                />
+
+                {/* Start Km */}
                 <Text style={styles.label}>Start Km</Text>
                 <TextInput
                     style={styles.input}
                     keyboardType="numeric"
                     value={startKm}
                     onChangeText={setStartKm}
-                    editable={!(trip.startKm > 0 && trip.endKm > 0)} // disable if trip complete
+                    editable={false}
                     placeholder="Enter start km"
                 />
 
-                {/* Editable End Km */}
+                {/* End Km */}
                 <Text style={styles.label}>End Km</Text>
                 <TextInput
                     style={styles.input}
                     keyboardType="numeric"
                     value={endKm}
                     onChangeText={setEndKm}
-                    editable={!(trip.startKm > 0 && trip.endKm > 0)} // disable if trip complete
+                    editable={!tripCompleted}
                     placeholder="Enter end km"
                 />
 

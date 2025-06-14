@@ -18,12 +18,6 @@ const tabs = [
         iconActive: 'https://img.icons8.com/ios-filled/50/16a34a/road.png',
     },
     {
-        name: 'profile',
-        title: 'Profile',
-        icon: 'https://img.icons8.com/ios-filled/50/6b7280/user-male-circle.png',
-        iconActive: 'https://img.icons8.com/ios-filled/50/16a34a/user-male-circle.png',
-    },
-    {
         name: 'travelForm',
         title: 'Travel Form',
         icon: 'https://img.icons8.com/ios-filled/50/6b7280/document.png',

@@ -20,13 +20,13 @@
         "buildType": "apk"
       },
       "env": {
-        "NODE_ENV": "development"
+        "NODE_ENV": "preview"
       }
     },
     "production": {
       "autoIncrement": true,
       "android": {
-        "buildType": "apk"
+        "buildType": "app-bundle"
       },
       "env": {
         "NODE_ENV": "production"

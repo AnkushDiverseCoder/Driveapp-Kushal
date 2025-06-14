@@ -1,18 +1,20 @@
+import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
-    View,
+    ActivityIndicator,
+    ScrollView,
+    StatusBar,
     Text,
     TextInput,
     TouchableOpacity,
-    StatusBar,
-    ActivityIndicator,
-    ScrollView,
+    View,
 } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
 
 export default function RegisterScreen() {
     const [form, setForm] = useState({
         username: '',
+        displayName: '',
         email: '',
         password: '',
         label: 'employee',
@@ -34,6 +36,10 @@ export default function RegisterScreen() {
             errors.username = 'Username cannot contain spaces';
         } else if (!usernameRegex.test(form.username)) {
             errors.username = 'Must be 3–20 characters (letters, numbers, ".", "_")';
+        }
+
+        if (!form.displayName) {
+            errors.displayName = 'Display Name is required';
         }
 
         if (!form.email) {
@@ -64,7 +70,8 @@ export default function RegisterScreen() {
                 form.username,
                 form.email,
                 form.password,
-                [form.label]
+                [form.label],
+                form.displayName // ✅ pass displayName
             );
 
             console.log("Register result:", result);
@@ -79,6 +86,8 @@ export default function RegisterScreen() {
             alert('Something went wrong. Please try again.');
         }
     };
+    
+    const router = useRouter();
 
     return (
         <ScrollView contentContainerStyle={{ flexGrow: 1, padding: 24, justifyContent: 'center', backgroundColor: '#ffffff' }}>
@@ -111,6 +120,27 @@ export default function RegisterScreen() {
                 />
                 {inputErrors.username && (
                     <Text style={{ color: 'red', marginTop: -12 }}>{inputErrors.username}</Text>
+                )}
+
+                {/* Display Name */}
+                <TextInput
+                    placeholder="Display Name"
+                    value={form.displayName}
+                    onChangeText={(text) => {
+                        setForm({ ...form, displayName: text });
+                        setInputErrors((prev) => ({ ...prev, displayName: null }));
+                    }}
+                    style={{
+                        borderWidth: 1,
+                        borderColor: inputErrors.displayName ? 'red' : '#e5e7eb',
+                        borderRadius: 12,
+                        padding: 12,
+                        backgroundColor: '#f9fafb',
+                        fontSize: 16,
+                    }}
+                />
+                {inputErrors.displayName && (
+                    <Text style={{ color: 'red', marginTop: -12 }}>{inputErrors.displayName}</Text>
                 )}
 
                 {/* Email */}
@@ -159,20 +189,21 @@ export default function RegisterScreen() {
                 )}
 
                 {/* Role Selector */}
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 }}>
-                    {['employee', 'admin'].map((role) => (
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8, flexWrap: 'wrap' }}>
+                    {['employee', 'admin', 'supervisor'].map((role) => (
                         <TouchableOpacity
                             key={role}
                             onPress={() => setForm({ ...form, label: role })}
                             style={{
-                                flex: 1,
-                                marginHorizontal: 4,
+                                flexGrow: 1,
+                                margin: 4,
                                 paddingVertical: 12,
                                 borderRadius: 12,
                                 backgroundColor: form.label === role ? '#064e3b' : '#f3f4f6',
                                 borderWidth: 1,
                                 borderColor: '#e5e7eb',
                                 alignItems: 'center',
+                                minWidth: '30%',
                             }}
                         >
                             <Text
@@ -187,28 +218,54 @@ export default function RegisterScreen() {
                     ))}
                 </View>
 
-                {/* Submit Button */}
-                <TouchableOpacity
-                    style={{
-                        backgroundColor: '#064e3b',
-                        paddingVertical: 14,
-                        borderRadius: 12,
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        flexDirection: 'row',
-                        marginTop: 16,
-                    }}
-                    onPress={handleRegister}
-                    disabled={loading}
-                >
-                    {loading ? (
-                        <ActivityIndicator color="white" />
-                    ) : (
-                        <Text style={{ color: 'white', fontWeight: '600', fontSize: 16 }}>
-                            Register
-                        </Text>
-                    )}
-                </TouchableOpacity>
+                <View className="flex-row gap-2">
+                    {/* Submit Button */}
+                    <TouchableOpacity
+                        style={{
+                            backgroundColor: '#064e3b',
+                            paddingVertical: 14,
+                            borderRadius: 12,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexDirection: 'row',
+                            marginTop: 12,
+                        }}
+                        className="w-1/2"
+                        onPress={handleRegister}
+                        disabled={loading}
+                    >
+                        {loading ? (
+                            <ActivityIndicator color="white" />
+                        ) : (
+                            <Text style={{ color: 'white', fontWeight: '600', fontSize: 16 }}>
+                                Register
+                            </Text>
+                        )}
+                    </TouchableOpacity>
+                    {/* Submit Button */}
+                    <TouchableOpacity
+                        style={{
+                            backgroundColor: '#064e3b',
+                            paddingVertical: 14,
+                            borderRadius: 12,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexDirection: 'row',
+                            marginTop: 12,
+                        }}
+                        className="w-1/2"
+                        onPress={()=> router.replace('/(admintabs)/auth/modifyUser')}
+                        disabled={loading}
+                    >
+                        {loading ? (
+                            <ActivityIndicator color="white" />
+                        ) : (
+                            <Text style={{ color: 'white', fontWeight: '600', fontSize: 16 }}>
+                                Modify
+                            </Text>
+                        )}
+                    </TouchableOpacity>
+                </View>
             </View>
         </ScrollView>
     );

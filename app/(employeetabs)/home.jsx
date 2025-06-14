@@ -1,386 +1,222 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
     View,
     Text,
-    TextInput,
     TouchableOpacity,
     ScrollView,
-    KeyboardAvoidingView,
-    Platform,
-    Modal,
-    FlatList,
+    ActivityIndicator,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import CustomAlert from '../../components/CustomAlert';
-import dieselService from '../../services/dailyEntryFormService';
+import DateTimePickerModal from 'react-native-modal-datetime-picker';
+import authService from '../../services/authService';
+import dailyEntryFormService from '../../services/dailyEntryFormService';
+import tripService from '../../services/tripService';
+import { useRouter } from 'expo-router';
 import { useAuth } from '../../context/AuthContext';
 
+const ACCENT_COLOR = '#064e3b';
 
+function isSameDay(date1, date2) {
+    return (
+        date1.getFullYear() === date2.getFullYear() &&
+        date1.getMonth() === date2.getMonth() &&
+        date1.getDate() === date2.getDate()
+    );
+}
 
-const vehicleTypesMap = {
-    'XYLO': 10,
-    'INNOVA': 12,
-    'WINGER': 9,
-    'BOLERO NEO': 13,
-    'MARAZZO': 12,
-    'TIGOR XPRES-T SEDAN EV': 0, // No mileage provided, adjust if you have it
-    'KIA': 12,
-    'MG  ZS EV': 0, // No mileage provided
-};
-
-const vehicleNumbersList = [
-    { number: 'TS09UA9275', type: 'XYLO' },
-    { number: 'TS09UA9278', type: 'XYLO' },
-    { number: 'TS09UB1415', type: 'XYLO' },
-    { number: 'TS09UB1416', type: 'XYLO' },
-    { number: 'TS09UB5527', type: 'XYLO' },
-    { number: 'TS09UB5531', type: 'XYLO' },
-    { number: 'TS09UB5532', type: 'XYLO' },
-    { number: 'TS09UB5533', type: 'XYLO' },
-    { number: 'TS09UB5534', type: 'XYLO' },
-    { number: 'TS09UB5536', type: 'XYLO' },
-    { number: 'TS09UB8821', type: 'INNOVA' },
-    { number: 'TS09UB8822', type: 'INNOVA' },
-    { number: 'TS09UB8823', type: 'INNOVA' },
-    { number: 'TS09UB8825', type: 'INNOVA' },
-    { number: 'TS09UC1909', type: 'WINGER' },
-    { number: 'TS09UC1910', type: 'WINGER' },
-    { number: 'TS09UC1911', type: 'WINGER' },
-    { number: 'TS09UC1912', type: 'WINGER' },
-    { number: 'TS09UC1913', type: 'WINGER' },
-    { number: 'TS09UD9032', type: 'BOLERO NEO' },
-    { number: 'TS09UD9033', type: 'BOLERO NEO' },
-    { number: 'TS09UD9088', type: 'BOLERO NEO' },
-    { number: 'TS09UD9089', type: 'BOLERO NEO' },
-    { number: 'TS09UD9098', type: 'BOLERO NEO' },
-    { number: 'TS09UD9353', type: 'BOLERO NEO' },
-    { number: 'TS09UD9354', type: 'BOLERO NEO' },
-    { number: 'TS09UD9355', type: 'BOLERO NEO' },
-    { number: 'TS09UD9356', type: 'BOLERO NEO' },
-    { number: 'TS09UD9357', type: 'BOLERO NEO' },
-    { number: 'TS09UE0058', type: 'MARAZZO' },
-    { number: 'TS09UE0059', type: 'MARAZZO' },
-    { number: 'TS09UE0646', type: 'TIGOR XPRES-T SEDAN EV' },
-    { number: 'TS09UE0647', type: 'TIGOR XPRES-T SEDAN EV' },
-    { number: 'TS09UE1009', type: 'KIA' },
-    { number: 'TG09T0662', type: 'INNOVA' },
-    { number: 'TG09T0694', type: 'INNOVA' },
-    { number: 'TG09T0695', type: 'INNOVA' },
-    { number: 'TG09T0696', type: 'INNOVA' },
-    { number: 'TG09T0697', type: 'INNOVA' },
-    { number: 'TG09T0698', type: 'INNOVA' },
-    { number: 'TG09T4672', type: 'MG  ZS EV' },
-    { number: 'TG09T4752', type: 'KIA' },
-    { number: 'TG09T4753', type: 'KIA' },
-    { number: 'TG09T4754', type: 'KIA' },
-    { number: 'TG09T4755', type: 'KIA' },
-    { number: 'TG09T4763', type: 'KIA' },
-];
-
-export default function DieselForm() {
-    const [form, setForm] = useState({
-        meterReading: '',
-        fuelQuantity: '',
-        vehicleNumber: '',
-        vehicleType: '',
-    });
+export default function Home() {
     const { user } = useAuth();
-    const [alert, setAlert] = useState({ visible: false, title: '', message: '' });
-    const [errors, setErrors] = useState({});
-    const [loading, setLoading] = useState(false);
+    const router = useRouter();
 
-
-
-    // Modal state for vehicle number selection
-    const [vehicleModalVisible, setVehicleModalVisible] = useState(false);
-    const [searchQuery, setSearchQuery] = useState('');
-
-
-
-    const [mileage, setMileage] = useState(0);
-    const [totalDistance, setTotalDistance] = useState(null);
-
-
-
-    const handleChange = (field, value) => {
-        setForm((prev) => ({ ...prev, [field]: value }));
-        setErrors((prev) => ({ ...prev, [field]: '' }));
-    };
-
-
-
-    // When vehicle number is selected, update vehicleType automatically
-    const onSelectVehicleNumber = (vehicle) => {
-        setForm((prev) => ({
-            ...prev,
-            vehicleNumber: vehicle.number,
-            vehicleType: vehicle.type,
-        }));
-        setErrors((prev) => ({ ...prev, vehicleNumber: '', vehicleType: '' }));
-        setVehicleModalVisible(false);
-    };
-
-
+    const [dailyEntryDone, setDailyEntryDone] = useState(false);
+    const [tripData, setTripData] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [selectedDate, setSelectedDate] = useState(new Date());
+    const [isDatePickerVisible, setDatePickerVisibility] = useState(false);
 
     useEffect(() => {
-        const newMileage = vehicleTypesMap[form.vehicleType] ?? 0;
-        setMileage(newMileage);
+        fetchProfile(new Date());
+    }, []);
 
-
-
-        if (form.fuelQuantity && newMileage > 0) {
-            const distance = parseFloat(form.fuelQuantity) * newMileage;
-            setTotalDistance(distance);
-        } else {
-            setTotalDistance(null);
-        }
-    }, [form.vehicleType, form.fuelQuantity]);
-
-
-
-    const validate = () => {
-        const newErrors = {};
-        let valid = true;
-
-
-
-        if (!form.meterReading) {
-            newErrors.meterReading = 'Meter reading is required';
-            valid = false;
-        }
-        if (!form.vehicleNumber) {
-            newErrors.vehicleNumber = 'Vehicle number is required';
-            valid = false;
-        }
-        if (!form.vehicleType) {
-            newErrors.vehicleType = 'Vehicle type is required';
-            valid = false;
-        }
-
-
-
-        setErrors(newErrors);
-        return valid;
-    };
-
-
-
-    const handleSubmit = async () => {
-        if (!validate()) return;
-
-
-
-        setLoading(true);
-        const mileage = vehicleTypesMap[form.vehicleType] || 0;
-        const totalDistance = parseFloat(form.fuelQuantity) * mileage;
-
-
-
-        const payload = {
-            ...form,
-            meterReading: parseFloat(form.meterReading),
-            fuelQuantity: parseFloat(form.fuelQuantity),
-            mileage,
-            totalDistance,
-            userEmail: user?.email || '',
-            createdAt: new Date().toISOString(),
-        };
-
-
-
+    const fetchProfile = async (date) => {
         try {
-            const { data, error } = await dieselService.createDailyEntry(payload);
-            setLoading(false);
+            const currentUser = await authService.getCurrentUser();
+            if (!currentUser?.email) return;
 
+            const entryList = await dailyEntryFormService.listDailyEntry();
+            const tripResult = await tripService.fetchTripsByDate(
+                currentUser.email,
+                date.toISOString().split('T')[0]
+            );
 
-
-            if (error) {
-                setAlert({
-                    visible: true,
-                    title: 'Error',
-                    message: error.message || 'Failed to submit diesel entry.',
-                });
-            } else {
-                setAlert({
-                    visible: true,
-                    title: 'Success',
-                    message: 'Diesel entry submitted successfully!',
-                });
-                setForm({
-                    meterReading: '',
-                    fuelQuantity: '',
-                    vehicleNumber: '',
-                    vehicleType: '',
-                });
-                setVehicleModalVisible(false);
-                setSearchQuery('');
+            if (!tripResult.error) {
+                setTripData(tripResult.data);
             }
-        } catch (e) {
-            setLoading(false);
-            setAlert({
-                visible: true,
-                title: 'Error',
-                message: 'Unexpected error: ' + e.message,
+
+            const today = new Date();
+            const foundTodayEntry = entryList.data.documents.find((entry) => {
+                const entryDate = new Date(entry.$createdAt);
+                return isSameDay(today, entryDate) && entry.userEmail === currentUser.email;
             });
+
+            setDailyEntryDone(!!foundTodayEntry);
+        } catch (err) {
+            console.error('Error loading profile:', err);
+        } finally {
+            setLoading(false);
         }
     };
 
+    const handleDateConfirm = (date) => {
+        setSelectedDate(date);
+        fetchProfile(date);
+        setDatePickerVisibility(false);
+    };
 
-
-    // Filter vehicle numbers based on search query
-    const filteredVehicleNumbers = useMemo(() => {
-        if (!searchQuery) return vehicleNumbersList;
-        const lower = searchQuery.toLowerCase();
-        return vehicleNumbersList.filter(
-            (v) => v.number.toLowerCase().includes(lower) || v.type.toLowerCase().includes(lower)
+    if (loading) {
+        return (
+            <View className="flex-1 items-center justify-center bg-white">
+                <ActivityIndicator size="large" color={ACCENT_COLOR} />
+            </View>
         );
-    }, [searchQuery]);
-
-
+    }
 
     return (
-        <SafeAreaView className="flex-1 bg-white">
-            <KeyboardAvoidingView
-                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-                className="flex-1"
-            >
-                <ScrollView contentContainerStyle={{ padding: 20 }}>
-                    {/* Meter Reading */}
-                    <Text className="text-[#064e3b] font-semibold text-base">Today Meter Reading</Text>
-                    <TextInput
-                        value={form.meterReading}
-                        onChangeText={(text) => handleChange('meterReading', text)}
-                        placeholder="Enter current reading (km)"
-                        keyboardType="numeric"
-                        className="mt-2 bg-white border border-gray-300 rounded-xl px-4 py-3 text-[#064e3b]"
-                    />
-                    {errors.meterReading && (
-                        <Text className="text-red-500 mt-1">{errors.meterReading}</Text>
-                    )}
+        <ScrollView className="flex-1 bg-gray-100 px-4 pt-6 pb-12">
+            
+            {/* Centered Heading */}
+            <View className="relative">
+                <View className="bg-[#064e3b] px-4 py-2 rounded-t-xl shadow-sm">
+                    <Text className="text-white text-center font-bold text-lg tracking-wide">
+                        User Information
+                    </Text>
+                </View>
+            </View>
 
 
 
-                    {/* Fuel Quantity */}
-                    <Text className="text-[#064e3b] font-semibold text-base">Fuel Quantity (in liters)</Text>
-                    <TextInput
-                        value={form.fuelQuantity}
-                        onChangeText={(text) => handleChange('fuelQuantity', text)}
-                        placeholder="e.g., 10"
-                        keyboardType="numeric"
-                        className="mt-2 bg-white border border-gray-300 rounded-xl px-4 py-3 text-[#064e3b]"
-                    />
-                    {errors.fuelQuantity && (
-                        <Text className="text-red-500 mt-1">{errors.fuelQuantity}</Text>
-                    )}
+            {/* Compact User Info Box */}
+            <View className="bg-white rounded-b-xl px-4 py-4 mb-4 shadow-sm border border-gray-200 flex-row items-center">
+                {/* Optional Avatar Circle */}
+                <View className="w-12 h-12 rounded-full bg-[#064e3b] items-center justify-center mr-4">
+                    <Text className="text-white font-bold text-lg">
+                        {user?.name?.charAt(0).toUpperCase() || '?'}
+                    </Text>
+                </View>
+
+                {/* User Details */}
+                <View className="flex-1">
+                    <Text className="text-xs text-gray-500">Username</Text>
+                    <Text className="text-base font-semibold text-gray-900 mb-1">{user?.name}</Text>
+
+                    <Text className="text-xs text-gray-500">Email</Text>
+                    <Text className="text-sm text-gray-800">{user?.email}</Text>
+                </View>
+            </View>
 
 
+            {/* Status + Date Row */}
+            <View className="flex-row space-x-4 mb-6 ">
+                <View className="flex-1 bg-white rounded-xl p-5 shadow-sm border border-gray-200 mr-4">
+                    <Text className="text-sm text-gray-500 mb-1">Daily Entry Status</Text>
+                    <Text className={`text-base font-semibold ${dailyEntryDone ? 'text-green-700' : 'text-red-600'}`}>
+                        {dailyEntryDone ? 'Completed' : 'Not Done'}
+                    </Text>
+                </View>
 
-                    {/* Vehicle Number */}
-                    <Text className="text-[#064e3b] font-semibold text-base">Vehicle Number</Text>
-                    <TouchableOpacity
-                        onPress={() => setVehicleModalVisible(true)}
-                        className="mt-2 bg-white border border-gray-300 rounded-xl px-4 py-3"
-                    >
-                        <Text className="text-[#064e3b]">
-                            {form.vehicleNumber || 'Select Vehicle Number'}
-                        </Text>
-                    </TouchableOpacity>
-                    {errors.vehicleNumber && (
-                        <Text className="text-red-500 mt-1">{errors.vehicleNumber}</Text>
-                    )}
-
-
-
-                    {/* Vehicle Type - read-only */}
-                    <Text className="text-[#064e3b] font-semibold text-base">Vehicle Type</Text>
-                    <View
-                        className="mt-2 bg-gray-100 rounded-xl px-4 py-3"
-                        style={{ opacity: 0.7 }}
-                    >
-                        <Text className="text-[#064e3b] text-base">
-                            {form.vehicleType || '-'}
-                        </Text>
-                    </View>
-                    {errors.vehicleType && (
-                        <Text className="text-red-500 mt-1">{errors.vehicleType}</Text>
-                    )}
-
-
-
-                    {/* Mileage + Distance */}
-                    {form.vehicleType && form.fuelQuantity && (
-                        <View>
-                            <Text className="text-[#064e3b] font-semibold text-base">Mileage</Text>
-                            <View className="mt-2 bg-gray-100 rounded-xl px-4 py-3">
-                                <Text className="text-[#064e3b] text-base">{mileage} km/l</Text>
-                            </View>
-
-
-
-                            <Text className="text-[#064e3b] font-semibold text-base mt-4">Estimated Distance</Text>
-                            <View className="mt-2 bg-gray-100 rounded-xl px-4 py-3">
-                                <Text className="text-[#064e3b] text-base">{totalDistance?.toFixed(2)} km</Text>
-                            </View>
-                        </View>
-                    )}
-
-
-
-                    {/* Submit */}
-                        <TouchableOpacity
-                            onPress={handleSubmit}
-                            disabled={loading}
-                            className={`bg-[#064e3b] rounded-xl mt-4 py-4 items-center shadow-sm ${loading ? 'opacity-50' : 'opacity-100'
-                                }`}
-                        >
-                            <Text className="text-white text-xl font-semibold">
-                                {loading ? 'Submitting...' : 'Submit'}
-                            </Text>
-                        </TouchableOpacity>
-                </ScrollView>
-                {/* Vehicle Number Selection Modal */}
-                <Modal
-                    visible={vehicleModalVisible}
-                    animationType="slide"
-                    transparent={true}
-                    onRequestClose={() => setVehicleModalVisible(false)}
+                <TouchableOpacity
+                    onPress={() => setDatePickerVisibility(true)}
+                    className="flex-1 bg-white rounded-xl p-5 shadow-sm border border-gray-200"
                 >
-                    <View className="flex-1 justify-end bg-black bg-opacity-50">
-                        <View className="bg-white p-4 rounded-t-2xl max-h-[80%]">
-                            <Text className="text-[#064e3b] font-bold text-lg mb-4">Select Vehicle Number</Text>
-                            <TextInput
-                                placeholder="Search by number or type"
-                                value={searchQuery}
-                                onChangeText={setSearchQuery}
-                                className="bg-gray-100 rounded-xl px-4 py-3 mb-4"
-                            />
-                            <FlatList
-                                data={filteredVehicleNumbers}
-                                keyExtractor={(item) => item.number}
-                                renderItem={({ item }) => (
-                                    <TouchableOpacity
-                                        onPress={() => onSelectVehicleNumber(item)}
-                                        className="p-3 border-b border-gray-200"
-                                    >
-                                        <Text className="text-[#064e3b] text-base">
-                                            {item.number} ({item.type})
-                                        </Text>
-                                    </TouchableOpacity>
-                                )}
-                            />
+                    <Text className="text-sm text-gray-500 mb-1">Selected Date</Text>
+                    <Text className="text-base font-medium text-gray-800">
+                        {selectedDate.toDateString().split(' ').slice(1).join(' ')}
+                    </Text>
+                </TouchableOpacity>
+            </View>
+
+            {/* Date Modal Picker */}
+            <DateTimePickerModal
+                isVisible={isDatePickerVisible}
+                mode="date"
+                date={selectedDate}
+                onConfirm={handleDateConfirm}
+                onCancel={() => setDatePickerVisibility(false)}
+            />
+
+            {/* Trip Summary */}
+            {tripData && (
+                <>
+                <View className="bg-white rounded-2xl p-5 shadow-sm border border-gray-200 mb-6">
+                    <Text className="text-lg font-semibold text-gray-800 mb-4">Trip Summary</Text>
+                    <View className="flex-row justify-between mb-3">
+                        <Text className="text-gray-600">Total Trips</Text>
+                        <View className="bg-green-100 px-3 py-1 rounded-full">
+                            <Text className="text-green-800 font-bold">{tripData.totalTrips}</Text>
                         </View>
                     </View>
-                </Modal>
-            </KeyboardAvoidingView>
+                    <View className="flex-row justify-between">
+                        <Text className="text-gray-600">Completed</Text>
+                        <View className="bg-green-100 px-3 py-1 rounded-full">
+                            <Text className="text-green-800 font-bold">{tripData.completedTripsCount}</Text>
+                        </View>
+                    </View>
+                </View>
+                </>
+            )}
 
+            {/* Trip Details Grid */}
+            {tripData?.allTrips?.length > 0 && (
+                <>
+                    {/* Centered Heading */}
+                    <View className="relative">
+                        <View className="bg-[#064e3b] px-4 py-2 rounded-t-xl shadow-sm">
+                            <Text className="text-white text-center font-bold text-lg tracking-wide">
+                                Trip Details
+                            </Text>
+                        </View>
+                    </View>
+                    <View className="space-y-4">
+                        {tripData.allTrips.map((trip, index) => (
+                            <View
+                                key={trip.$id}
+                                className="bg-white border border-gray-200  shadow-sm px-4 py-4"
+                            >
+                                <Text className="font-semibold text-gray-800 mb-3">Trip #{trip.tripId}</Text>
+                                <View className="flex-row flex-wrap justify-between">
+                                    {[
+                                        ['Vehicle', trip.vehicleNumber],
+                                        ['Site', trip.siteName],
+                                        ['Method', trip.tripMethod],
+                                        ['Start Km', trip.startKm],
+                                        ['End Km', trip.endKm],
+                                        ['Distance', `${trip.distanceTravelled} km`],
+                                        ['Escort', trip.escort ? 'Yes' : 'No'],
+                                    ].map(([label, value], i) => (
+                                        <View
+                                            key={i}
+                                            className="w-[48%] mb-3 bg-gray-50 px-3 py-2 rounded-md"
+                                        >
+                                            <Text className="text-xs text-gray-500">{label}</Text>
+                                            <Text className="text-sm font-medium text-gray-800">{value}</Text>
+                                        </View>
+                                    ))}
+                                </View>
+                                <Text className="text-xs text-gray-400 text-right mt-2">
+                                    {new Date(trip.$createdAt).toLocaleString()}
+                                </Text>
+                            </View>
+                        ))}
+                    </View>
+                </>
+            )}
 
-
-            <CustomAlert
-                visible={alert.visible}
-                title={alert.title}
-                message={alert.message}
-                onClose={() => setAlert({ ...alert, visible: false })}
-            />
-        </SafeAreaView>
+            {/* Update Credentials Button */}
+            <TouchableOpacity
+                onPress={() => router.push('/(employeetabs)/auth/modifyPassword')}
+                className="mt-10 bg-green-900 py-4 rounded-xl shadow-sm"
+            >
+                <Text className="text-white text-center font-bold text-base">Update Login Credentials</Text>
+            </TouchableOpacity>
+        </ScrollView>
     );
 }

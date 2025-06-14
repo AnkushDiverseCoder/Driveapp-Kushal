@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useState } from 'react';
 import {
     View,
     Text,
@@ -6,22 +6,21 @@ import {
     TouchableOpacity,
     StatusBar,
     Image,
-    Dimensions,
     ActivityIndicator,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
 import { useRouter } from 'expo-router';
-
-const { width, height } = Dimensions.get('window');
+// import authService from '../../services/authService';
 
 export default function LoginScreen() {
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [inputErrors, setInputErrors] = useState({});
+    const [loginError, setLoginError] = useState(null); // 🔹 New state
 
-    const { login, error, loading, user } = useAuth();
+    const { login, loading } = useAuth();
     const router = useRouter();
 
     const validateInputs = () => {
@@ -32,27 +31,11 @@ export default function LoginScreen() {
         return Object.keys(errors).length === 0;
     };
 
-    useEffect(() => {
-        if (!loading && !error && user) {
-            const role = user.labels?.[0] || '';
-            switch (role.toLowerCase()) {
-                case 'admin':
-                    router.replace('/(admintabs)/home');
-                    break;
-                case 'employee':
-                    router.replace('/(employeetabs)/home');
-                    break;
-                default:
-                    router.replace('/auth/login');
-                    break;
-            }
-        }
-    }, [router, error, loading, user]);
-
     const handleLogin = async () => {
         if (!validateInputs()) return;
 
         try {
+            setLoginError(null); // 🔹 Reset previous error
             setInputErrors({});
             const result = await login(username, password);
 
@@ -65,12 +48,18 @@ export default function LoginScreen() {
                     case 'employee':
                         router.replace('/(employeetabs)/home');
                         break;
+                    case 'supervisor':
+                        router.replace('/(supervisortabs)/home');
+                        break;
                     default:
                         router.replace('/auth/login');
                         break;
                 }
+            } else {
+                setLoginError(result?.error || 'Login failed. Please try again.'); // 🔹 Show returned error
             }
         } catch (err) {
+            setLoginError(err.message || 'An unexpected error occurred.');
             console.error('Login failed:', err.message);
         }
     };
@@ -183,6 +172,13 @@ export default function LoginScreen() {
                         <Text style={{ color: 'white', fontWeight: '600', fontSize: 16 }}>Log In</Text>
                     )}
                 </TouchableOpacity>
+
+                {loginError && (
+                    <Text style={{ color: 'red', marginTop: 10, textAlign: 'center' }}>
+                        {loginError}
+                    </Text>
+                )}
+
             </View>
         </View>
     );

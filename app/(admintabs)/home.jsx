@@ -1,15 +1,10 @@
+// AdminDashboard.js
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { useEffect, useState } from 'react';
 import {
-    View,
-    Text,
-    ScrollView,
-    TextInput,
-    TouchableOpacity,
-    ActivityIndicator,
-    Alert,
-    Modal,
+    View, Text, ScrollView, TextInput, TouchableOpacity, ActivityIndicator,
+    Alert, Modal
 } from 'react-native';
 import * as XLSX from 'xlsx';
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
@@ -25,9 +20,11 @@ export default function AdminDashboard() {
     const [userModalVisible, setUserModalVisible] = useState(false);
 
     const [users, setUsers] = useState([]);
+    const [selectedUsers, setSelectedUsers] = useState([]);
     const [searchQuery, setSearchQuery] = useState('');
-    const [selectedUser, setSelectedUser] = useState(null);
-    const [selectedDate, setSelectedDate] = useState(null);
+    const [startDate, setStartDate] = useState(null);
+    const [endDate, setEndDate] = useState(null);
+    const [datePickerMode, setDatePickerMode] = useState('start');
     const [isDatePickerVisible, setDatePickerVisibility] = useState(false);
     const [allDailyEntries, setAllDailyEntries] = useState([]);
     const [allTrips, setAllTrips] = useState([]);
@@ -41,65 +38,73 @@ export default function AdminDashboard() {
         try {
             const current = await authService.getCurrentUser();
             const allUsers = await authService.fetchAllUsers();
-            const uniqueUsers = Array.from(new Map(allUsers.data.map(u => [u.email, u])).values());
+            const unique = Array.from(new Map(allUsers.data.map(u => [u.email, u])).values());
             setCurrentUser(current);
-            setUsers(uniqueUsers);
+            setUsers(unique);
 
-            const dailyRes = await dailyEntryFormService.listDailyEntry();
-            const tripRes = await tripService.listTrips();
-            setAllDailyEntries(dailyRes?.data?.documents || []);
-            setAllTrips(tripRes?.data?.documents || []);
-        } catch (err) {
-            Alert.alert('Error', err?.message || 'Failed to fetch data');
+            const d = await dailyEntryFormService.listDailyEntry();
+            const t = await tripService.listTrips();
+            setAllDailyEntries(d.data.documents || []);
+            setAllTrips(t.data.documents || []);
+        } catch (e) {
+            Alert.alert('Error', e.message || 'Failed to fetch data');
         } finally {
             setLoading(false);
         }
     };
 
-    const exportToExcel = async (jsonData, fileName) => {
+    const formatDate = d => d.toISOString().split('T')[0];
+
+    const exportToExcel = async (jsonData, fileName, columns) => {
         try {
-            const data = jsonData.length ? jsonData : [{ "No Data": "No records found" }];
-            const ws = XLSX.utils.json_to_sheet(data);
+            const filtered = jsonData.length
+                ? jsonData.map(obj => columns.reduce((acc, c) => {
+                    acc[c.label] = typeof c.value === 'function' ? c.value(obj) : obj[c.key] ?? '';
+                    return acc;
+                }, {}))
+                : [{ "No Data": "No records found" }];
+
+            const ws = XLSX.utils.json_to_sheet(filtered);
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
             const wbout = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
             const uri = FileSystem.cacheDirectory + `${fileName}.xlsx`;
-            await FileSystem.writeAsStringAsync(uri, wbout, {
-                encoding: FileSystem.EncodingType.Base64,
-            });
+            await FileSystem.writeAsStringAsync(uri, wbout, { encoding: FileSystem.EncodingType.Base64 });
             await Sharing.shareAsync(uri, {
                 mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                dialogTitle: `Export ${fileName}`,
-                UTI: 'com.microsoft.excel.xlsx',
+                dialogTitle: `Export ${fileName}`, UTI: 'com.microsoft.excel.xlsx'
             });
         } catch (e) {
-            Alert.alert('Export Failed', e?.message || 'Unknown error occurred');
+            Alert.alert('Export Failed', e.message || 'Unknown error');
         }
+    };
+
+    const resetFilters = () => {
+        setSelectedUsers([]);
+        setStartDate(null);
+        setEndDate(null);
     };
 
     const exportDailyEntry = async () => {
         setExportingDaily(true);
         try {
-            let result = [];
-            if (selectedUser && selectedDate) {
-                const res = await dailyEntryFormService.fetchByUserAndDate(
-                    selectedUser.email,
-                    selectedDate.toDateString()
-                );
-                result = res.data || [];
-            } else if (selectedUser) {
-                const res = await dailyEntryFormService.fetchByUserOnly(selectedUser.email);
-                result = res.data || [];
-            } else if (selectedDate) {
-                const res = await dailyEntryFormService.fetchByDateOnly(selectedDate.toDateString());
-                result = res.data || [];
+            let data = [], emails = selectedUsers.map(u => u.email);
+            const s = startDate ? formatDate(startDate) : null;
+            const e = endDate ? formatDate(endDate) : null;
+
+            if (emails.length && s && e) {
+                data = await dailyEntryFormService.fetchByUserAndDate(emails, s, e).then(r => r.data);
+            } else if (emails.length) {
+                data = await dailyEntryFormService.fetchByUserOnly(emails).then(r => r.data);
+            } else if (s && e) {
+                data = await dailyEntryFormService.fetchByDateOnly(s, e).then(r => r.data);
             } else {
-                result = allDailyEntries;
+                data = allDailyEntries;
             }
 
-            await exportToExcel(result, 'daily-entry');
-        } catch (err) {
-            Alert.alert('Error Exporting Daily Entry', err?.message);
+            await exportToExcel(data, 'daily-entry', Object.keys(data[0] || {}).map(k => ({ key: k, label: k })));
+        } catch (e) {
+            Alert.alert('Error Exporting Daily Entry', e.message);
         } finally {
             setExportingDaily(false);
         }
@@ -108,205 +113,195 @@ export default function AdminDashboard() {
     const exportTripDetails = async () => {
         setExportingTrip(true);
         try {
-            let result = [];
-            if (selectedUser && selectedDate) {
-                const res = await tripService.fetchTripsByDate(
-                    selectedUser.email,
-                    selectedDate.toDateString()
-                );
-                result = res.data?.allTrips || [];
-            } else if (selectedUser) {
-                const res = await tripService.fetchTripsByUserOnly(selectedUser.email);
-                result = res.data || [];
-            } else if (selectedDate) {
-                const res = await tripService.fetchTripsByDateOnly(selectedDate.toDateString());
-                result = res.data || [];
+            let data = [], emails = selectedUsers.map(u => u.email);
+            const s = startDate ? formatDate(startDate) : null;
+            const e = endDate ? formatDate(endDate) : null;
+
+            // 🔹 Fetch trips based on filters
+            if (emails.length && s && e) {
+                data = await tripService.fetchTripsByUserAndDate(emails, s, e).then(r => r.data);
+            } else if (emails.length) {
+                data = await tripService.fetchTripsByUserOnly(emails).then(r => r.data);
+            } else if (s && e) {
+                data = await tripService.fetchTripsByDateOnly(s, e).then(r => r.data);
             } else {
-                result = allTrips;
+                data = allTrips;
             }
 
-            await exportToExcel(result, 'trip-details');
-        } catch (err) {
-            Alert.alert('Error Exporting Trip Details', err?.message);
+            // 🔹 Get unique emails and fetch usernames
+            const emailList = [...new Set(data.map(trip => trip.userEmail))];
+            const userMap = await authService.getUsersByEmails(emailList);
+
+            // 🔹 Attach username to each trip
+            data = data.map(trip => ({
+                ...trip,
+                userName: userMap[trip.userEmail]?.username || 'Unknown',
+            }));
+
+            // 🔹 Define columns including new username field
+            const columns = [
+                { label: 'User Name', key: 'userName' },
+                { label: 'Site Name', key: 'siteName' },
+                { label: 'Created At', value: row => row.$createdAt?.split('T')[0] || '' },
+                { label: 'Trip ID', key: 'tripId' },
+                { label: 'Trip Method', key: 'TripMethod' },
+                { label: 'Escort', value: row => row.escort ? 'Yes' : 'No' },
+                { label: 'Vehicle Number', key: 'vehicleNumber' },
+                { label: 'Start KM', key: 'startKm' },
+                { label: 'End KM', key: 'endKm' },
+                { label: 'Distance Travelled', key: 'distanceTravelled' },
+                ...Object.keys(data[0] || {}).filter(k =>
+                    !['userName', 'siteName', '$createdAt', 'tripId', 'TripMethod', 'escort', 'vehicleNumber', 'startKm', 'endKm', 'distanceTravelled'].includes(k)
+                ).map(k => ({ label: k, key: k }))
+            ];
+
+            await exportToExcel(data, 'trip-details', columns);
+        } catch (e) {
+            Alert.alert('Error Exporting Trip Details', e.message);
         } finally {
             setExportingTrip(false);
         }
     };
 
-    const filteredUsers = users.filter((u) =>
+    const toggleUser = u => {
+        setSelectedUsers(prev =>
+            prev.find(x => x.email === u.email)
+                ? prev.filter(x => x.email !== u.email)
+                : [...prev, u]
+        );
+    };
+
+    const filtered = users.filter(u =>
         u.username?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         u.email?.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
     if (loading) {
         return (
-            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f0fdf4' }}>
+            <View style={styles.centerContainer}>
                 <ActivityIndicator size="large" color="#064e3b" />
-                <Text style={{ marginTop: 10 }}>Loading dashboard...</Text>
+                <Text>Loading dashboard...</Text>
             </View>
         );
     }
 
     return (
-        <ScrollView contentContainerStyle={{ padding: 16, backgroundColor: '#f0fdf4', minHeight: '100%' }}>
-            <Text style={{ fontSize: 22, fontWeight: '700', color: '#064e3b', textAlign: 'center', marginBottom: 16 }}>
-                Admin Dashboard
-            </Text>
-
+        <ScrollView style={styles.container}>
             {/* Admin Info */}
-            <View style={{ backgroundColor: '#fff', borderRadius: 12, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: '#ccc', flexDirection: 'row', alignItems: 'center' }}>
-                <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: '#064e3b', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
-                    <Text style={{ color: '#fff', fontSize: 18, fontWeight: 'bold' }}>{currentUser?.username?.charAt(0)?.toUpperCase() || '?'}</Text>
-                </View>
+            <View style={styles.adminCard}>
+                <Text style={styles.initial}>{currentUser?.username?.[0]?.toUpperCase() || '?'}</Text>
                 <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 12, color: '#666' }}>Username</Text>
-                    <Text style={{ fontSize: 16, fontWeight: '600' }}>{currentUser?.username}</Text>
-                    <Text style={{ fontSize: 12, color: '#666', marginTop: 4 }}>Email</Text>
-                    <Text style={{ fontSize: 14 }}>{currentUser?.email}</Text>
+                    <Text style={styles.adminLabel}>Username</Text>
+                    <Text style={styles.adminValue}>{currentUser?.username}</Text>
+                    <Text style={styles.adminLabel}>Email</Text>
+                    <Text style={styles.adminValue}>{currentUser?.email}</Text>
                 </View>
             </View>
 
             {/* User Picker */}
-            <Text className="text-[#064e3b] font-semibold text-base mb-1">Selected User</Text>
-            <TouchableOpacity
-                onPress={() => setUserModalVisible(true)}
-                className="bg-white border border-gray-300 rounded-xl px-4 py-3 mb-3"
-            >
-                <Text className="text-[#064e3b]">
-                    {selectedUser ? selectedUser.username : 'Choose User'}
-                </Text>
+            <Text style={styles.sectionTitle}>Select Users:</Text>
+            <TouchableOpacity style={styles.pickerBtn} onPress={() => setUserModalVisible(true)}>
+                <Text>{selectedUsers.length ? 'Change users...' : 'Choose users'}</Text>
             </TouchableOpacity>
 
-            {/* User Modal */}
-            <Modal
-                visible={userModalVisible}
-                animationType="slide"
-                onRequestClose={() => setUserModalVisible(false)}
-            >
-                <View className="flex-1 bg-[#f0fdf4] px-5 pt-6">
-                    {/* Header */}
-                    <Text className="text-[#064e3b] font-bold text-xl mb-4 text-center">Select User</Text>
+            {/* Chips */}
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 12 }}>
+                {selectedUsers.map(u => (
+                    <View key={u.email} style={styles.chip}>
+                        <Text style={styles.chipText}>{u.username}</Text>
+                    </View>
+                ))}
+            </View>
 
-                    {/* Search Input */}
+            <Modal visible={userModalVisible} animationType="slide">
+                <View style={styles.modalContainer}>
+                    <Text style={styles.modalTitle}>Select Users</Text>
                     <TextInput
-                        placeholder="Search by name or email"
+                        placeholder="Search users..."
                         value={searchQuery}
                         onChangeText={setSearchQuery}
-                        className="bg-white border border-gray-300 rounded-xl px-4 py-3 mb-4"
+                        style={styles.searchInput}
                     />
-
-                    {/* List */}
-                    <ScrollView className="flex-1">
-                        {filteredUsers.length > 0 ? (
-                            filteredUsers.map((u, index) => (
-                                <TouchableOpacity
-                                    key={u.email + index}
-                                    onPress={() => {
-                                        setSelectedUser(u);
-                                        setUserModalVisible(false);
-                                    }}
-                                    className={`rounded-xl px-4 py-3 mb-2 border ${selectedUser?.email === u.email
-                                            ? 'bg-[#064e3b] border-[#064e3b]'
-                                            : 'bg-white border-gray-300'
-                                        }`}
-                                >
-                                    <Text
-                                        className={`text-base ${selectedUser?.email === u.email
-                                                ? 'text-white font-semibold'
-                                                : 'text-[#1f2937]'
-                                            }`}
-                                    >
-                                        {u.username} ({u.email})
-                                    </Text>
-                                </TouchableOpacity>
-                            ))
-                        ) : (
-                            <Text className="text-gray-500 text-center mt-10">No users found</Text>
-                        )}
+                    <ScrollView>
+                        {filtered.map((u, i) => (
+                            <TouchableOpacity
+                                key={u.email + i}
+                                onPress={() => toggleUser(u)}
+                                style={[
+                                    styles.userItem,
+                                    selectedUsers.some(s => s.email === u.email) && styles.userSelected
+                                ]}
+                            >
+                                <Text>
+                                    {u.username} ({u.email})
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
                     </ScrollView>
-
-                    {/* Close Button */}
-                    <TouchableOpacity
-                        onPress={() => setUserModalVisible(false)}
-                        className="mt-6 bg-red-600 py-3 rounded-xl items-center"
-                    >
-                        <Text className="text-white font-semibold">Close</Text>
+                    <TouchableOpacity style={styles.closeBtn} onPress={() => setUserModalVisible(false)}>
+                        <Text style={{ color: '#fff' }}>Close</Text>
                     </TouchableOpacity>
                 </View>
             </Modal>
 
-
-            {/* Date Filter */}
-            <View style={{ marginBottom: 16 }}>
-                <Text style={{ fontWeight: '600', marginBottom: 4 }}>Select Date:</Text>
-                <TouchableOpacity
-                    onPress={() => setDatePickerVisibility(true)}
-                    style={{
-                        padding: 10,
-                        borderWidth: 1,
-                        borderColor: '#ccc',
-                        borderRadius: 6,
-                        backgroundColor: '#fff',
-                    }}
-                >
-                    <Text>{selectedDate ? selectedDate.toDateString() : 'Pick a date'}</Text>
-                </TouchableOpacity>
-                {selectedDate && (
-                    <TouchableOpacity onPress={() => setSelectedDate(null)}>
-                        <Text style={{ color: '#dc2626', marginTop: 4 }}>Clear Date</Text>
-                    </TouchableOpacity>
-                )}
-            </View>
+            {/* Date Pickers */}
+            <Text style={styles.sectionTitle}>Date Range:</Text>
+            <TouchableOpacity style={styles.dateBtn} onPress={() => { setDatePickerMode('start'); setDatePickerVisibility(true); }}>
+                <Text>{startDate ? startDate.toDateString() : 'Select start date'}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.dateBtn} onPress={() => { setDatePickerMode('end'); setDatePickerVisibility(true); }}>
+                <Text>{endDate ? endDate.toDateString() : 'Select end date'}</Text>
+            </TouchableOpacity>
 
             <DateTimePickerModal
                 isVisible={isDatePickerVisible}
                 mode="date"
                 onConfirm={(date) => {
-                    setSelectedDate(date);
+                    if (datePickerMode === 'start') {
+                        setStartDate(date);
+                    } else {
+                        setEndDate(date);
+                    }
                     setDatePickerVisibility(false);
                 }}
                 onCancel={() => setDatePickerVisibility(false)}
             />
 
-            {/* Export Buttons */}
-            <View style={{ marginTop: 20 }}>
-                <TouchableOpacity
-                    onPress={exportDailyEntry}
-                    disabled={exportingDaily}
-                    style={{
-                        backgroundColor: '#064e3b',
-                        padding: 12,
-                        borderRadius: 8,
-                        marginBottom: 12,
-                        alignItems: 'center',
-                        opacity: exportingDaily ? 0.7 : 1,
-                    }}
-                >
-                    {exportingDaily ? (
-                        <ActivityIndicator color="#fff" />
-                    ) : (
-                        <Text style={{ color: 'white', fontWeight: '600' }}>Export Daily Entry</Text>
-                    )}
+            {/* Reset & Exports */}
+            <View style={styles.btnRow}>
+                <TouchableOpacity onPress={resetFilters} style={[styles.btn, { backgroundColor: '#dc2626' }]}>
+                    <Text style={styles.btnText}>Reset Filters</Text>
                 </TouchableOpacity>
-
-                <TouchableOpacity
-                    onPress={exportTripDetails}
-                    disabled={exportingTrip}
-                    style={{
-                        backgroundColor: '#064e3b',
-                        padding: 12,
-                        borderRadius: 8,
-                        alignItems: 'center',
-                        opacity: exportingTrip ? 0.7 : 1,
-                    }}
-                >
-                    {exportingTrip ? (
-                        <ActivityIndicator color="#fff" />
-                    ) : (
-                        <Text style={{ color: 'white', fontWeight: '600' }}>Export Trip Details</Text>
-                    )}
+                <TouchableOpacity onPress={exportDailyEntry} disabled={exportingDaily} style={styles.btn}>
+                    {exportingDaily ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnText}>Export Daily Entry</Text>}
+                </TouchableOpacity>
+                <TouchableOpacity onPress={exportTripDetails} disabled={exportingTrip} style={styles.btn}>
+                    {exportingTrip ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnText}>Export Trip Details</Text>}
                 </TouchableOpacity>
             </View>
         </ScrollView>
     );
 }
+
+const styles = {
+    container: { padding: 16, backgroundColor: '#f0fdf4' },
+    centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+    adminCard: { flexDirection: 'row', backgroundColor: '#fff', padding: 16, borderRadius: 12, alignItems: 'center', marginBottom: 16 },
+    initial: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#064e3b', color: '#fff', fontSize: 18, textAlign: 'center', textAlignVertical: 'center', marginRight: 12 },
+    adminLabel: { fontSize: 12, color: '#666' },
+    adminValue: { fontSize: 16, fontWeight: '600' },
+    sectionTitle: { fontWeight: '600', marginBottom: 6, color: '#064e3b' },
+    pickerBtn: { backgroundColor: '#fff', padding: 12, borderRadius: 8, borderWidth: 1, borderColor: '#ccc', marginBottom: 8 },
+    chip: { backgroundColor: '#064e3b', padding: 8, borderRadius: 16, margin: 4 },
+    chipText: { color: '#fff' },
+    modalContainer: { flex: 1, padding: 16, backgroundColor: '#f0fdf4' },
+    modalTitle: { fontSize: 20, fontWeight: 'bold', color: '#064e3b', marginBottom: 12 },
+    searchInput: { backgroundColor: '#fff', borderColor: '#ccc', borderWidth: 1, borderRadius: 8, padding: 10, marginBottom: 12 },
+    userItem: { padding: 12, borderRadius: 8, borderWidth: 1, borderColor: '#ccc', marginBottom: 8 },
+    userSelected: { backgroundColor: '#064e3b' },
+    closeBtn: { marginTop: 12, backgroundColor: '#dc2626', padding: 12, borderRadius: 8, alignItems: 'center' },
+    dateBtn: { backgroundColor: '#fff', padding: 10, borderRadius: 6, borderColor: '#ccc', borderWidth: 1, marginBottom: 8 },
+    btnRow: { marginTop: 20 },
+    btn: { backgroundColor: '#064e3b', padding: 14, borderRadius: 8, alignItems: 'center', marginBottom: 12 },
+    btnText: { color: '#fff', fontWeight: '600' },
+};

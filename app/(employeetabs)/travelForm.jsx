@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import {
     View,
     Text,
@@ -13,9 +13,10 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import tripService from '../../services/tripService'
 import CustomAlert from '../../components/CustomAlert'
 import { useAuth } from '../../context/AuthContext'
+import vehicleService from '../../services/vechicleService'
 
 const tripMethods = ['pickup', 'drop']
-const siteOptions = ['Sagility', 'Deloitte', 'Youchana', 'Cogent'];
+const siteOptions = ['Sagility', 'Deloitte', 'Youchana', 'Cogent']
 
 const vehicleNumbersList = [
     { number: 'TS09UA9275', type: 'XYLO' },
@@ -64,7 +65,7 @@ const vehicleNumbersList = [
     { number: 'TG09T4754', type: 'KIA' },
     { number: 'TG09T4755', type: 'KIA' },
     { number: 'TG09T4763', type: 'KIA' },
-];
+]
 
 export default function TravelForm() {
     const [form, setForm] = useState({
@@ -77,16 +78,52 @@ export default function TravelForm() {
         vehicleNumber: '',
     })
 
-    const [searchQuery, setSearchQuery] = useState('');
+    const [vehicleList, setVehicleList] = useState(vehicleNumbersList)
+    const [searchQuery, setSearchQuery] = useState('')
     const [vehicleModalVisible, setVehicleModalVisible] = useState(false)
     const [alert, setAlert] = useState({ visible: false, title: '', message: '' })
     const [errors, setErrors] = useState({})
     const [loading, setLoading] = useState(false)
     const { user } = useAuth()
 
+    useEffect(() => {
+        const fetchVehicles = async () => {
+            try {
+                const response = await vehicleService.listVehicles();
+
+                // Handle response with nested structure
+                const documents = response?.data?.documents;
+
+                if (Array.isArray(documents)) {
+                    const fetchedList = documents.map(doc => ({
+                        number: doc.vehicleNumber || 'Unknown',
+                        type: doc.vehicleType || 'Unknown',
+                    }));
+
+                    const mergedList = [...vehicleNumbersList, ...fetchedList];
+
+                    // Remove duplicates by `number`
+                    const uniqueList = Array.from(
+                        new Map(mergedList.map(item => [item.number, item])).values()
+                    );
+
+                    setVehicleList(uniqueList); // Set your state here
+                } else {
+                    console.warn('No documents found in vehicle response:', response);
+                    setVehicleList(vehicleNumbersList); // fallback to hardcoded list
+                }
+            } catch (error) {
+                console.error('Error fetching vehicles:', error);
+                setVehicleList(vehicleNumbersList); // fallback on error
+            }
+        };
+
+        fetchVehicles();
+    }, []);
+
     const handleChange = (name, value) => {
-        setForm((prev) => ({ ...prev, [name]: value }))
-        setErrors((prev) => ({ ...prev, [name]: null }))
+        setForm(prev => ({ ...prev, [name]: value }))
+        setErrors(prev => ({ ...prev, [name]: null }))
     }
 
     const validate = () => {
@@ -99,15 +136,18 @@ export default function TravelForm() {
                 valid = false
             }
         }
+        // Trip ID pattern validation: only numbers, underscores, and hyphens
+        if (form.tripId && !/^[\d_-]+$/.test(form.tripId)) {
+            newErrors.tripId = 'Trip ID must contain only numbers, - or _';
+            valid = false;
+        }
         if (!form.vehicleNumber) {
             newErrors.vehicleNumber = 'Please select a vehicle number'
             valid = false
         }
-        if (form.startKm && form.endKm) {
-            if (+form.startKm > +form.endKm) {
-                newErrors.endKm = 'End KM must be greater than Start KM'
-                valid = false
-            }
+        if (form.startKm && form.endKm && +form.startKm > +form.endKm) {
+            newErrors.endKm = 'End KM must be greater than Start KM'
+            valid = false
         }
         setErrors(newErrors)
         return valid
@@ -116,20 +156,24 @@ export default function TravelForm() {
     const handleSubmit = async () => {
         if (!validate()) return
         setLoading(true)
-        const distanceTravelled = form.endKm && form.startKm ? parseFloat(form.endKm) - parseFloat(form.startKm) : 0
+
+        const distanceTravelled = form.endKm && form.startKm
+            ? parseFloat(form.endKm) - parseFloat(form.startKm)
+            : 0
+
         const payload = {
             ...form,
             startKm: form.startKm ? parseFloat(form.startKm) : 0,
             endKm: form.endKm ? parseFloat(form.endKm) : 0,
             distanceTravelled,
             userEmail: user.email,
-            createdAt: new Date().toISOString(),
         }
+
         try {
+            // eslint-disable-next-line no-unused-vars
             const { data, error } = await tripService.createTrip(payload)
             setLoading(false)
             if (error) {
-                console.log(error)
                 setAlert({ visible: true, title: 'Error', message: error.message || 'Last Trip Is Not Completed.' })
             } else {
                 setAlert({ visible: true, title: 'Success', message: 'Trip submitted successfully!' })
@@ -152,16 +196,14 @@ export default function TravelForm() {
     const todayDate = new Date().toLocaleDateString('en-IN', {
         day: '2-digit',
         month: 'short',
-        year: 'numeric'
-    });
-
+        year: 'numeric',
+    })
 
     return (
         <SafeAreaView className="flex-1 bg-white">
             <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} className="flex-1">
                 <ScrollView contentContainerStyle={{ padding: 20 }}>
-
-                    {/* Site Name Dropdown */}
+                    {/* Site Dropdown */}
                     <Text className="text-[#064e3b] font-semibold text-base">Site Name</Text>
                     <View className="mt-2 bg-white border border-gray-300 rounded-lg">
                         {siteOptions.map((option) => (
@@ -176,14 +218,14 @@ export default function TravelForm() {
                     </View>
                     {errors.siteName && <Text className="text-red-500 mt-1">{errors.siteName}</Text>}
 
-                    <Text className="text-[#064e3b] font-semibold text-base">Trip Method</Text>
+                    {/* Trip Method */}
+                    <Text className="text-[#064e3b] font-semibold text-base mt-4">Trip Method</Text>
                     <View className="flex-row mt-2">
                         {tripMethods.map((type) => (
                             <TouchableOpacity
                                 key={type}
                                 onPress={() => handleChange('tripMethod', type)}
-                                className={`mr-4 px-4 py-2 rounded-lg border ${form.tripMethod === type ? 'bg-[#064e3b]' : 'border-gray-400'
-                                    }`}
+                                className={`mr-4 px-4 py-2 rounded-lg border ${form.tripMethod === type ? 'bg-[#064e3b]' : 'border-gray-400'}`}
                             >
                                 <Text className={`${form.tripMethod === type ? 'text-white' : 'text-[#064e3b]'} capitalize`}>
                                     {type}
@@ -193,6 +235,7 @@ export default function TravelForm() {
                     </View>
                     {errors.tripMethod && <Text className="text-red-500 mt-1">{errors.tripMethod}</Text>}
 
+                    {/* Trip ID */}
                     <Text className="text-[#064e3b] font-semibold text-base mt-4">Date of Entry</Text>
                     <TextInput
                         value={todayDate}
@@ -200,25 +243,26 @@ export default function TravelForm() {
                         className="border border-gray-400 rounded-lg px-3 py-2 mt-2 text-[#064e3b] bg-gray-100"
                     />
 
-
                     <Text className="text-[#064e3b] font-semibold text-base">Trip ID</Text>
                     <TextInput
                         value={form.tripId}
                         onChangeText={(text) => handleChange('tripId', text)}
                         placeholder="Enter trip ID"
-                        className="border border-gray-400 rounded-lg rounded px-3 py-2 mt-2 text-[#064e3b]"
+                        className="border border-gray-400 rounded-lg px-3 py-2 mt-2 text-[#064e3b]"
                     />
                     {errors.tripId && <Text className="text-red-500 mt-1">{errors.tripId}</Text>}
 
-                    <Text className="text-[#064e3b] font-semibold text-base mr-4">Escort</Text>
+                    {/* Escort */}
+                    <Text className="text-[#064e3b] font-semibold text-base mt-4">Escort</Text>
                     <TouchableOpacity
                         onPress={() => handleChange('escort', !form.escort)}
-                        className={`px-4 py-2 border rounded-lg ${form.escort ? 'bg-[#064e3b]' : 'border-gray-400'}`}
+                        className={`mt-2 px-4 py-2 border rounded-lg ${form.escort ? 'bg-[#064e3b]' : 'border-gray-400'}`}
                     >
                         <Text className={`${form.escort ? 'text-white' : 'text-[#064e3b]'}`}>{form.escort ? 'Yes' : 'No'}</Text>
                     </TouchableOpacity>
 
-                    <Text className="text-[#064e3b] font-semibold text-base">Vehicle Number</Text>
+                    {/* Vehicle Selection */}
+                    <Text className="text-[#064e3b] font-semibold text-base mt-4">Vehicle Number</Text>
                     <TouchableOpacity
                         onPress={() => setVehicleModalVisible(true)}
                         className="mt-2 bg-white border border-gray-400 rounded px-3 py-2"
@@ -240,44 +284,34 @@ export default function TravelForm() {
                                 <Text className="text-center text-lg font-semibold text-[#064e3b] mb-4">
                                     Select Vehicle Number
                                 </Text>
-
-                                {/* Search Bar */}
                                 <TextInput
                                     placeholder="Search vehicle number"
                                     value={searchQuery}
                                     onChangeText={setSearchQuery}
                                     className="border border-gray-400 rounded px-3 py-2 mb-4 text-[#064e3b]"
                                 />
-
-                                {/* Filtered List */}
                                 <ScrollView className="max-h-[70%]">
-                                    {vehicleNumbersList
-                                        .filter(v =>
-                                            v.number.toLowerCase().includes(searchQuery.toLowerCase())
-                                        )
-                                        .map((v, idx) => (
-                                            <TouchableOpacity
-                                                key={idx}
-                                                className="py-2 border-b border-gray-200"
-                                                onPress={() => {
-                                                    handleChange('vehicleNumber', v.number)
-                                                    setVehicleModalVisible(false)
-                                                    setSearchQuery('')
-                                                }}
-                                            >
-                                                <Text className="text-[#064e3b]">
-                                                    {v.number} ({v.type})
-                                                </Text>
-                                            </TouchableOpacity>
-                                        ))}
-
-                                    {vehicleNumbersList.filter(v =>
+                                    {vehicleList.filter(v =>
+                                        v.number.toLowerCase().includes(searchQuery.toLowerCase())
+                                    ).map((v, idx) => (
+                                        <TouchableOpacity
+                                            key={idx}
+                                            className="py-2 border-b border-gray-200"
+                                            onPress={() => {
+                                                handleChange('vehicleNumber', v.number)
+                                                setVehicleModalVisible(false)
+                                                setSearchQuery('')
+                                            }}
+                                        >
+                                            <Text className="text-[#064e3b]">{v.number} ({v.type})</Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                    {vehicleList.filter(v =>
                                         v.number.toLowerCase().includes(searchQuery.toLowerCase())
                                     ).length === 0 && (
                                             <Text className="text-center text-gray-400">No matching vehicles</Text>
                                         )}
                                 </ScrollView>
-
                                 <TouchableOpacity
                                     onPress={() => {
                                         setVehicleModalVisible(false)
@@ -291,8 +325,8 @@ export default function TravelForm() {
                         </View>
                     </Modal>
 
-
-                    <Text className="text-[#064e3b] font-semibold text-base">Start KM</Text>
+                    {/* KM Fields */}
+                    <Text className="text-[#064e3b] font-semibold text-base mt-4">Start KM</Text>
                     <TextInput
                         value={form.startKm}
                         onChangeText={(text) => handleChange('startKm', text)}
@@ -300,9 +334,7 @@ export default function TravelForm() {
                         keyboardType="numeric"
                         className="border border-gray-400 rounded-lg px-3 py-2 mt-2 text-[#064e3b]"
                     />
-                    {errors.startKm && <Text className="text-red-500 mt-1">{errors.startKm}</Text>}
-
-                    <Text className="text-[#064e3b] font-semibold text-base">End KM</Text>
+                    <Text className="text-[#064e3b] font-semibold text-base mt-4">End KM</Text>
                     <TextInput
                         value={form.endKm}
                         onChangeText={(text) => handleChange('endKm', text)}
@@ -312,17 +344,24 @@ export default function TravelForm() {
                     />
                     {errors.endKm && <Text className="text-red-500 mt-1">{errors.endKm}</Text>}
 
+                    {/* Submit */}
                     <TouchableOpacity
                         onPress={handleSubmit}
                         className="bg-[#064e3b] rounded-xl py-3 mt-6"
                         disabled={loading}
                     >
-                        <Text className="text-white text-center font-semibold text-lg">{loading ? 'Submitting...' : 'Submit Trip'}</Text>
+                        <Text className="text-white text-center font-semibold text-lg">
+                            {loading ? 'Submitting...' : 'Submit Trip'}
+                        </Text>
                     </TouchableOpacity>
                 </ScrollView>
             </KeyboardAvoidingView>
-
-            <CustomAlert visible={alert.visible} title={alert.title} message={alert.message} onClose={() => setAlert({ ...alert, visible: false })} />
+            <CustomAlert
+                visible={alert.visible}
+                title={alert.title}
+                message={alert.message}
+                onClose={() => setAlert({ ...alert, visible: false })}
+            />
         </SafeAreaView>
     )
 }

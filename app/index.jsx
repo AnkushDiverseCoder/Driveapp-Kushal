@@ -3,30 +3,52 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useEffect } from 'react';
 import { Image, Text, View } from 'react-native';
+import authService from '../services/authService';
 
 export default function WelcomeScreen() {
   const router = useRouter();
-  const { user, loading, error } = useAuth();
+  const { loading, error } = useAuth();
   
   useEffect(() => {
-    if (!loading && !error && !user) {
-      setTimeout(() => {
-        router.replace('auth/login'); // 👈 Navigate automatically after 2 seconds
-      }, 2000);
-    }
-    if (!loading && !error && user) {
-      if(user.labels[0] === 'admin') {
-        setTimeout(() => {
-          router.replace('/(admintabs)/home'); // 👈 Navigate automatically after 2 seconds
-        }, 2000);
-      }
-      setTimeout(() => {
-        router.replace('/(employeetabs)/home'); // 👈 Navigate automatically after 2 seconds
-      }, 2000);
-    }
+    let timeout;
 
-    return () => clearTimeout(); // Cleanup on unmount
-  }, [router, error, loading, user]);
+    const checkUserAndRedirect = async () => {
+        try {
+            const user = await authService.getCurrentUser();
+
+            if (!loading && !error) {
+                if (!user || user.error) {
+                    timeout = setTimeout(() => {
+                        router.replace('/auth/login');
+                    }, 2000);
+                    return;
+                }
+
+                const role = user.labels?.[0]?.toLowerCase() || '';
+                timeout = setTimeout(() => {
+                    if (role === 'admin') {
+                        router.replace('/(admintabs)/home');
+                    } else if (role === 'supervisor') {
+                        router.replace('/(supervisortabs)/home');
+                    }else if (role === 'employee') {
+                        router.replace('/(employeetabs)/home');
+                    } else {
+                        router.replace('/auth/login');
+                    }
+                }, 2000);
+            }
+        } catch (e) {
+            timeout = setTimeout(() => {
+                router.replace('/auth/login');
+            }, 2000);
+            console.log(e)
+        }
+    };
+
+    checkUserAndRedirect();
+
+    return () => clearTimeout(timeout); // ✅ Cleanup timeout
+}, [router, error, loading]);
 
   return (
     <LinearGradient
