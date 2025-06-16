@@ -1,15 +1,16 @@
-import React, { useEffect, useState } from "react";
-import {
-    View,
-    Text,
-    FlatList,
-    TouchableOpacity,
-    ActivityIndicator,
-    TextInput,
-    Platform,
-} from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import { useCallback, useEffect, useState } from "react";
+import {
+    ActivityIndicator,
+    FlatList,
+    Platform,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
+} from "react-native";
 import dailyEntryFormService from "../../services/dailyEntryFormService";
+import authService from "../../services/authService";
 
 const accentColor = "#006400";
 
@@ -25,44 +26,53 @@ const DailyEntryPage = () => {
     const [vehicleType, setVehicleType] = useState("");
     const [showDatePicker, setShowDatePicker] = useState(false);
 
-    const fetchEntries = async (pageNum = 1) => {
+    const fetchEntries = useCallback(async (pageNum = 1) => {
         if (loading || !hasMore) return;
         setLoading(true);
+
         const res = await dailyEntryFormService.listDailyEntryPagination(pageNum, 20, sortOrder);
-        if (res.error) {
-            console.error(res.error);
-        } else {
+        if (!res.error) {
             const newData = res.data || [];
+            const emails = [...new Set(newData.map(entry => entry.userEmail))];
+            const userMap = await authService.getUsersByEmails(emails);
+            const enrichedData = newData.map(entry => ({
+                ...entry,
+                username: userMap[entry.userEmail]?.displayName ?? "Unknown",
+            }));
+
             if (pageNum === 1) {
-                setEntries(newData);
+                setEntries(enrichedData);
             } else {
-                setEntries((prev) => [...prev, ...newData]);
+                setEntries((prev) => [...prev, ...enrichedData]);
             }
+
             if (newData.length < 20) setHasMore(false);
             setPage(pageNum);
         }
         setLoading(false);
-    };
+    }, [loading, hasMore, sortOrder]);
 
     useEffect(() => {
         fetchEntries(1);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [sortOrder]);
+    }, [fetchEntries]);
 
     useEffect(() => {
         let filtered = entries.filter((item) =>
             item.vehicleNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
             item.userEmail.toLowerCase().includes(searchQuery.toLowerCase())
         );
+
         if (filterDate) {
             const selectedDate = new Date(filterDate).toDateString();
             filtered = filtered.filter(
                 (item) => new Date(item.$createdAt).toDateString() === selectedDate
             );
         }
+
         if (vehicleType) {
             filtered = filtered.filter((item) => item.vehicleType === vehicleType);
         }
+
         setFilteredData(filtered);
     }, [searchQuery, entries, filterDate, vehicleType]);
 
@@ -83,7 +93,7 @@ const DailyEntryPage = () => {
             <Text>Fuel Quantity: {item.fuelQuantity}L</Text>
             <Text>Total Distance: {item.totalDistance} km</Text>
             <Text>Mileage: {item.mileage} km/l</Text>
-            <Text>User: {item.displayName}</Text>
+            <Text>User: {String(item.username || "Unknown")}</Text>
             <Text style={{ fontSize: 12, color: "#888", marginTop: 4 }}>
                 {new Date(item.$createdAt).toLocaleString()}
             </Text>
