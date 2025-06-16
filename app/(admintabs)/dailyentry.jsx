@@ -83,7 +83,7 @@ const DailyEntryPage = () => {
             <Text>Fuel Quantity: {item.fuelQuantity}L</Text>
             <Text>Total Distance: {item.totalDistance} km</Text>
             <Text>Mileage: {item.mileage} km/l</Text>
-            <Text>User: {item.userEmail}</Text>
+            <Text>User: {item.displayName}</Text>
             <Text style={{ fontSize: 12, color: "#888", marginTop: 4 }}>
                 {new Date(item.$createdAt).toLocaleString()}
             </Text>

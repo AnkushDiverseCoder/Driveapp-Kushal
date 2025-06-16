@@ -190,7 +190,7 @@ export default function RegisterScreen() {
 
                 {/* Role Selector */}
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8, flexWrap: 'wrap' }}>
-                    {['employee', 'admin', 'supervisor'].map((role) => (
+                    {['employee', 'admin', 'supervisor','attached'].map((role) => (
                         <TouchableOpacity
                             key={role}
                             onPress={() => setForm({ ...form, label: role })}

@@ -51,6 +51,9 @@ export default function LoginScreen() {
                     case 'supervisor':
                         router.replace('/(supervisortabs)/home');
                         break;
+                    case 'attached':
+                        router.replace('/(attachedtabs)/home');
+                        break;
                     default:
                         router.replace('/auth/login');
                         break;
@@ -68,7 +71,7 @@ export default function LoginScreen() {
         <View
             style={{
                 flex: 1,
-                backgroundColor: '#f0fdf4',
+                backgroundColor: '#fff',
                 justifyContent: 'center',
                 padding: 24,
             }}
@@ -98,7 +101,7 @@ export default function LoginScreen() {
             <Text style={{ fontSize: 28, fontWeight: 'bold', color: '#064e3b', textAlign: 'center' }}>
                 Login to Your Account
             </Text>
-            <Text style={{ color: '#4b5563', fontSize: 16, textAlign: 'center', marginTop: 8 }}>
+            <Text style={{ color: '#4b5563', fontSize: 16, textAlign: 'center', marginTop: 8, marginBottom: 24 }}>
                 Welcome back! Please enter your username and password.
             </Text>
 
@@ -126,6 +129,7 @@ export default function LoginScreen() {
 
                 <View style={{ position: 'relative' }}>
                     <TextInput
+                        key={showPassword ? 'text' : 'password'} // Forces re-render
                         placeholder="Password"
                         placeholderTextColor="#9ca3af"
                         secureTextEntry={!showPassword}
@@ -134,6 +138,7 @@ export default function LoginScreen() {
                             setPassword(text);
                             setInputErrors((prev) => ({ ...prev, password: null }));
                         }}
+                        autoCapitalize="none"
                         style={{
                             borderWidth: 1,
                             borderColor: inputErrors.password ? 'red' : '#e5e7eb',
@@ -146,12 +151,20 @@ export default function LoginScreen() {
                         }}
                     />
                     <TouchableOpacity
-                        onPress={() => setShowPassword(!showPassword)}
-                        style={{ position: 'absolute', right: 16, top: 12 }}
+                        onPress={() => setShowPassword(prev => !prev)}
+                        style={{
+                            position: 'absolute',
+                            right: 16,
+                            top: '50%',
+                            transform: [{ translateY: -11 }],
+                            padding: 4,
+                        }}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                     >
                         <Feather name={showPassword ? 'eye-off' : 'eye'} size={22} color="#6b7280" />
                     </TouchableOpacity>
                 </View>
+
 
                 <TouchableOpacity
                     style={{

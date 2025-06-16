@@ -55,7 +55,7 @@ export default function TripDetails() {
 
             const enriched = rawTrips.map(trip => ({
                 ...trip,
-                username: userMap[trip.userEmail]?.username || 'Unknown',
+                username: userMap[trip.userEmail]?.displayName || 'Unknown',
             }));
 
             if (reset) {

@@ -163,7 +163,7 @@ export default function Home() {
                 </View>
                 </>
             )}
-
+q
             {/* Trip Details Grid */}
             {tripData?.allTrips?.length > 0 && (
                 <>

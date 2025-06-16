@@ -254,7 +254,7 @@ export default function RegisterScreen() {
                             marginTop: 12,
                         }}
                         className="w-1/2"
-                        onPress={()=> router.replace('/(admintabs)/auth/modifyUser')}
+                        onPress={()=> router.replace('/(supervisortabs)/auth/modifyUser')}
                         disabled={loading}
                     >
                         {loading ? (

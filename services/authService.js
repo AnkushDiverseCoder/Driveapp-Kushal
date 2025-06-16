@@ -101,6 +101,15 @@ const authService = {
             return { error: error.message || 'Logout failed.' };
         }
     },
+    
+    async getActiveSessions() {
+        try {
+            const sessions = await account.listSessions();
+            return { success: true, data: sessions.sessions };
+        } catch (error) {
+            return { error: error.message || 'Failed to fetch active sessions.' };
+        }
+    },
 
     async changePassword(newPassword, oldPassword) {
         try {
@@ -119,11 +128,13 @@ const authService = {
                 email,
                 labels,
                 currentPassword,
-                newPassword
+                newPassword,
+                skipPasswordUpdate = false,
             } = updates;
 
             const updatePromises = [];
 
+            // Check for duplicate username
             if (username) {
                 const existing = await databaseService.listDocuments(DATABASE_ID, USERS_COLLECTION_ID, [
                     Query.equal('username', username),
@@ -133,6 +144,7 @@ const authService = {
                 }
             }
 
+            // Check for duplicate email
             if (email) {
                 const existing = await databaseService.listDocuments(DATABASE_ID, USERS_COLLECTION_ID, [
                     Query.equal('email', email),
@@ -142,7 +154,8 @@ const authService = {
                 }
             }
 
-            if (displayName || username) {
+            // Self-update only (requires session)
+            if ((displayName || username) && currentPassword?.trim()) {
                 const newName = displayName || username;
                 updatePromises.push(account.updateName(newName));
             }
@@ -151,11 +164,18 @@ const authService = {
                 updatePromises.push(account.updateEmail(email, currentPassword.trim()));
             }
 
-            if (newPassword?.trim() && newPassword.trim().length >= 6) {
-                updatePromises.push(account.updatePassword(newPassword.trim()));
+            if (
+                newPassword?.trim() &&
+                newPassword.trim().length >= 6 &&
+                currentPassword?.trim() &&
+                !skipPasswordUpdate
+            ) {
+                updatePromises.push(account.updatePassword(newPassword.trim(), currentPassword.trim()));
             }
 
-            if (updatePromises.length) await Promise.all(updatePromises);
+            if (updatePromises.length) {
+                await Promise.all(updatePromises);
+            }
 
             const docUpdates = {};
             if (username) docUpdates.username = username;
@@ -163,6 +183,11 @@ const authService = {
             if (email) docUpdates.email = email;
             if (labels && VALID_LABELS.includes(labels)) {
                 docUpdates.labels = [labels];
+            }
+
+            // Admin manual password update (stored in DB only)
+            if (newPassword?.trim() && skipPasswordUpdate) {
+                docUpdates.password = newPassword.trim(); // Note: Only valid if you're not using Appwrite Auth
             }
 
             let updatedDoc = null;
@@ -184,7 +209,6 @@ const authService = {
             };
         }
     },
-
     async deleteUserById(documentId) {
         try {
             await databaseService.deleteDocument(DATABASE_ID, USERS_COLLECTION_ID, documentId);

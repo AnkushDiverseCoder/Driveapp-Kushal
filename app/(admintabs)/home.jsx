@@ -12,6 +12,7 @@ import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import authService from '../../services/authService';
 import dailyEntryFormService from '../../services/dailyEntryFormService';
 import tripService from '../../services/tripService';
+import { useRouter } from 'expo-router';
 
 export default function AdminDashboard() {
     const [loading, setLoading] = useState(true);
@@ -29,7 +30,9 @@ export default function AdminDashboard() {
     const [allDailyEntries, setAllDailyEntries] = useState([]);
     const [allTrips, setAllTrips] = useState([]);
     const [currentUser, setCurrentUser] = useState(null);
-
+        
+        const router = useRouter();
+    
     useEffect(() => {
         fetchAllData();
     }, []);
@@ -277,6 +280,9 @@ export default function AdminDashboard() {
                 </TouchableOpacity>
                 <TouchableOpacity onPress={exportTripDetails} disabled={exportingTrip} style={styles.btn}>
                     {exportingTrip ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnText}>Export Trip Details</Text>}
+                </TouchableOpacity>
+                <TouchableOpacity onPress={()=> router.replace('/(admintabs)/advanceentry')} style={styles.btn}>
+                    {exportingTrip ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnText}>Accountant Entry</Text>}
                 </TouchableOpacity>
             </View>
         </ScrollView>

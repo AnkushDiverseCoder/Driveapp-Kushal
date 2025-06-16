@@ -9,7 +9,8 @@ const config = {
         trips: process.env.EXPO_PUBLIC_APPWRITE_COL_TRIP_ID,
         dailyEntryForm: process.env.EXPO_PUBLIC_APPWRITE_COL_DAILY_ENTRY_FORM_ID,
         users : process.env.EXPO_PUBLIC_APPWRITE_COL_USERS,
-        vehicleEntry: process.env.EXPO_PUBLIC_APPWRITE_COL_VEHICLE_ENTRY
+        vehicleEntry: process.env.EXPO_PUBLIC_APPWRITE_COL_VEHICLE_ENTRY,
+        advanceEntry:process.env.EXPO_PUBLIC_APPWRITE_COL_ADVANCE_ENTRY
     }
 };
 

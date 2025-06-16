@@ -10,7 +10,7 @@ const vehicleService = {
     // 🔹 Get all vehicles
     async listVehicles(queries = []) {
         try {
-            const res = await databaseService.listDocuments(DATABASE_ID, VEHICLE_COLLECTION_ID, queries);
+            const res = await databaseService.listAllDocuments(DATABASE_ID, VEHICLE_COLLECTION_ID, queries);
             return { success: true, data: res };
         } catch (error) {
             return { success: false, error: error.message || 'Failed to fetch vehicles' };

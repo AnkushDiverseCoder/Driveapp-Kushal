@@ -1,98 +1,203 @@
-import { useAuth } from '../context/AuthContext';
-import { LinearGradient } from 'expo-linear-gradient';
+import React, { useEffect, useRef } from 'react';
+import {
+  View,
+  Image,
+  Animated,
+  Easing,
+  StyleSheet,
+  Text,
+} from 'react-native';
 import { useRouter } from 'expo-router';
-import React, { useEffect } from 'react';
-import { Image, Text, View } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useAuth } from '../context/AuthContext';
 import authService from '../services/authService';
 
 export default function WelcomeScreen() {
   const router = useRouter();
   const { loading, error } = useAuth();
-  
+
+  const fadeInText = useRef(new Animated.Value(0)).current;
+  const dotScale = useRef(new Animated.Value(1)).current;
+
   useEffect(() => {
-    let timeout;
+    Animated.timing(fadeInText, {
+      toValue: 1,
+      duration: 800,
+      useNativeDriver: true,
+      delay: 400,
+    }).start();
 
-    const checkUserAndRedirect = async () => {
-        try {
-            const user = await authService.getCurrentUser();
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(dotScale, {
+          toValue: 1.4,
+          duration: 600,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(dotScale, {
+          toValue: 1,
+          duration: 600,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
 
-            if (!loading && !error) {
-                if (!user || user.error) {
-                    timeout = setTimeout(() => {
-                        router.replace('/auth/login');
-                    }, 2000);
-                    return;
-                }
+    const timeout = setTimeout(async () => {
+      try {
+        const user = await authService.getCurrentUser();
 
-                const role = user.labels?.[0]?.toLowerCase() || '';
-                timeout = setTimeout(() => {
-                    if (role === 'admin') {
-                        router.replace('/(admintabs)/home');
-                    } else if (role === 'supervisor') {
-                        router.replace('/(supervisortabs)/home');
-                    }else if (role === 'employee') {
-                        router.replace('/(employeetabs)/home');
-                    } else {
-                        router.replace('/auth/login');
-                    }
-                }, 2000);
-            }
-        } catch (e) {
-            timeout = setTimeout(() => {
-                router.replace('/auth/login');
-            }, 2000);
-            console.log(e)
+        if (!loading && !error) {
+          const role = user?.labels?.[0]?.toLowerCase() || '';
+          if (!user || user.error) return router.replace('/auth/login');
+
+          if (role === 'admin') router.replace('/(admintabs)/home');
+          else if (role === 'supervisor') router.replace('/(supervisortabs)/home');
+          else if (role === 'employee') router.replace('/(employeetabs)/home');
+          else if (role === 'attached') router.replace('/(attachedtabs)/home');
+          else router.replace('/auth/login');
         }
-    };
+      } catch {
+        router.replace('/auth/login');
+      }
+    }, 3000);
 
-    checkUserAndRedirect();
-
-    return () => clearTimeout(timeout); // ✅ Cleanup timeout
-}, [router, error, loading]);
+    return () => clearTimeout(timeout);
+  }, [router, loading, error, dotScale, fadeInText]);
 
   return (
-    <LinearGradient
-      colors={['#d4fc79', '#96e6a1']}
-      style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 24 }}
-    >
-      {/* Floating decorative circle */}
-      <View style={{
-        position: 'absolute',
-        top: -60,
-        right: -60,
-        width: 160,
-        height: 160,
-        backgroundColor: '#4ade80',
-        borderRadius: 80,
-        opacity: 0.25,
-      }} />
+    <View style={{ flex: 1 }}>
+      {/* Background */}
+      <LinearGradient
+        colors={['#d1fae5', '#f0fdf4']}
+        style={styles.container}
+      >
+        {/* Wavy overlays */}
+        <View style={styles.wavyBackground1} />
+        <View style={styles.wavyBackground2} />
 
-      {/* Logo */}
-        <Image
-          source={require('../assets/driverLogo.png')}
-          style={{ width: 120, height: 120 }}
-          resizeMode="contain"
-        />
+        {/* Logo block */}
+        <Animated.View style={styles.logoWrapper}>
+          <Image
+            source={require('../assets/driverLogo.png')}
+            style={{ width: 100, height: 100 }}
+            resizeMode="contain"
+          />
+          <Animated.View
+            style={[styles.dot, { transform: [{ scale: dotScale }] }]}
+          />
+        </Animated.View>
 
-      {/* Text */}
-        <Text style={{
-          fontSize: 32,
-          fontWeight: 'bold',
-          color: '#065f46',
-          textAlign: 'center',
-        }}>
-          Welcome to DrivePro
-        </Text>
-        <Text style={{
-          marginTop: 8,
-          color: '#065f46',
-          textAlign: 'center',
-          fontSize: 16,
-          opacity: 0.8,
-        }}>
-          Manage your drivers with ease and efficiency.
-        </Text>
+        {/* Tagline badge */}
+        <View style={styles.badge}>
+          <Text style={styles.badgeText}>Trusted. Smart. Efficient.</Text>
+        </View>
 
-    </LinearGradient>
+        {/* Welcome texts */}
+        <Animated.Text style={[styles.title, { opacity: fadeInText }]}>
+          Welcome to Kushal Partner
+        </Animated.Text>
+
+        <Animated.Text style={[styles.subtitle, { opacity: fadeInText }]}>
+          Simplify your workforce like never before.
+        </Animated.Text>
+
+        {/* Footer strip */}
+        <View style={styles.footer}>
+          <Text style={styles.footerText}>Empowering logistics for a greener tomorrow</Text>
+        </View>
+      </LinearGradient>
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  wavyBackground1: {
+    position: 'absolute',
+    width: '120%',
+    height: '60%',
+    backgroundColor: '#34d399',
+    borderBottomLeftRadius: 120,
+    borderBottomRightRadius: 120,
+    transform: [{ scaleX: 1.8 }],
+    top: -50,
+    zIndex: -3,
+  },
+  wavyBackground2: {
+    position: 'absolute',
+    width: '120%',
+    height: '40%',
+    backgroundColor: '#10b981',
+    borderBottomLeftRadius: 100,
+    borderBottomRightRadius: 100,
+    transform: [{ scaleX: 1.5 }],
+    top: 10,
+    zIndex: -2,
+  },
+  logoWrapper: {
+    backgroundColor: '#ffffff',
+    padding: 24,
+    borderRadius: 100,
+    marginBottom: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 8,
+  },
+  dot: {
+    width: 12,
+    height: 12,
+    backgroundColor: '#16a34a',
+    borderRadius: 6,
+    marginLeft: -10,
+  },
+  badge: {
+    backgroundColor: '#ecfdf5',
+    paddingVertical: 4,
+    paddingHorizontal: 12,
+    borderRadius: 16,
+    marginBottom: 12,
+  },
+  badgeText: {
+    fontSize: 12,
+    color: '#065f46',
+    fontWeight: '600',
+    textTransform: 'uppercase',
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#065f46',
+    textAlign: 'center',
+    paddingHorizontal: 24,
+  },
+  subtitle: {
+    marginTop: 10,
+    color: '#047857',
+    fontSize: 16,
+    textAlign: 'center',
+    paddingHorizontal: 30,
+    opacity: 0.9,
+  },
+  footer: {
+    position: 'absolute',
+    bottom: 40,
+    width: '100%',
+    alignItems: 'center',
+  },
+  footerText: {
+    fontSize: 12,
+    color: '#065f46',
+    fontStyle: 'italic',
+    opacity: 0.8,
+  },
+});
