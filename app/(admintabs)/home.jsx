@@ -30,9 +30,16 @@ export default function AdminDashboard() {
     const [allDailyEntries, setAllDailyEntries] = useState([]);
     const [allTrips, setAllTrips] = useState([]);
     const [currentUser, setCurrentUser] = useState(null);
-        
-        const router = useRouter();
-    
+    const [tripCounts, setTripCounts] = useState({});
+    const [tripSearch, setTripSearch] = useState('');
+
+    const filteredTripEntries = Object.entries(tripCounts).filter(([email]) => {
+        const user = users.find(u => u.email === email);
+        return user?.displayName?.toLowerCase().includes(tripSearch.toLowerCase());
+    });
+
+    const router = useRouter();
+
     useEffect(() => {
         fetchAllData();
     }, []);
@@ -42,13 +49,17 @@ export default function AdminDashboard() {
             const current = await authService.getCurrentUser();
             const allUsers = await authService.fetchAllUsers();
             const unique = Array.from(new Map(allUsers.data.map(u => [u.email, u])).values());
+
             setCurrentUser(current);
             setUsers(unique);
 
             const d = await dailyEntryFormService.listDailyEntry();
             const t = await tripService.listTrips();
+            const counts = await tripService.fetchTodayUserTripCounts();
+
             setAllDailyEntries(d.data.documents || []);
             setAllTrips(t.data.documents || []);
+            setTripCounts(counts.data || {});
         } catch (e) {
             Alert.alert('Error', e.message || 'Failed to fetch data');
         } finally {
@@ -281,10 +292,62 @@ export default function AdminDashboard() {
                 <TouchableOpacity onPress={exportTripDetails} disabled={exportingTrip} style={styles.btn}>
                     {exportingTrip ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnText}>Export Trip Details</Text>}
                 </TouchableOpacity>
-                <TouchableOpacity onPress={()=> router.replace('/(admintabs)/advanceentry')} style={styles.btn}>
+                <TouchableOpacity onPress={() => router.replace('/(admintabs)/advanceentry')} style={styles.btn}>
                     {exportingTrip ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnText}>Accountant Entry</Text>}
                 </TouchableOpacity>
+                <TouchableOpacity onPress={() => router.replace('/(admintabs)/component/clientservicescreen')} style={styles.btn}>
+                    {exportingTrip ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnText}>Client Service Screen</Text>}
+                </TouchableOpacity>
             </View>
+            <Text style={styles.sectionTitle2}>Todays Trips (6 AM to 5:59 AM)</Text>
+
+            {/* Search bar */}
+            <View style={styles.searchBarContainer}>
+                <TextInput
+                    style={styles.searchBar}
+                    placeholder="Search by Display Name..."
+                    placeholderTextColor="#888"
+                    value={tripSearch}
+                    onChangeText={setTripSearch}
+                />
+            </View>
+
+            {/* Table layout */}
+            <View style={styles.tableWrapper}>
+                {/* Table Header */}
+                <View style={styles.tableRowHeader}>
+                    <Text style={[styles.tableCell2, { flex: 2 }]}>Display Name</Text>
+                    <Text style={[styles.tableCell2, { flex: 1, textAlign: 'right' }]}>Total Trips Count </Text>
+                </View>
+
+                {/* Table Body */}
+                {filteredTripEntries.length === 0 ? (
+                    <Text style={styles.noTripsText}>No trips found for today.</Text>
+                ) : (
+                    filteredTripEntries.map(([email, count], idx) => {
+                        const user = users.find(u => u.email === email);
+                        return (
+                            <View
+                                key={email}
+                                style={[
+                                    styles.tableRow,
+                                    { backgroundColor: idx % 2 === 0 ? '#ffffff' : '#f6fef9' },
+                                ]}
+                            >
+                                <Text style={[styles.tableCell, { flex: 2 }]}>
+                                    {user?.displayName || 'Unknown'}
+                                </Text>
+                                <Text style={[styles.tableCell, { flex: 1, textAlign: 'right' }]}>
+                                    {count}
+                                </Text>
+                            </View>
+                        );
+                    })
+                )}
+            </View>
+
+
+
         </ScrollView>
     );
 }
@@ -310,4 +373,13 @@ const styles = {
     btnRow: { marginTop: 20 },
     btn: { backgroundColor: '#064e3b', padding: 14, borderRadius: 8, alignItems: 'center', marginBottom: 12 },
     btnText: { color: '#fff', fontWeight: '600' },
+    sectionTitle2: { fontSize: 20, fontWeight: '600', color: '#064e3b', marginTop: 30, marginBottom: 14 },
+    searchBarContainer: { marginBottom: 12 },
+    searchBar: { backgroundColor: '#fff',borderColor: '#064e3b',borderWidth: 1.2,borderRadius: 10,paddingVertical: 10,paddingHorizontal: 14,fontSize: 15,color: '#111'},
+    tableWrapper: {borderWidth: 1.5,borderColor: '#064e3b',borderRadius: 12,overflow: 'hidden',backgroundColor: '#fff'},
+    tableRowHeader: {flexDirection: 'row',backgroundColor: '#064e3b',paddingVertical: 10,paddingHorizontal: 10},
+    tableRow: {flexDirection: 'row',paddingVertical: 12,paddingHorizontal: 10,borderBottomWidth: 1,borderColor: '#e0e0e0'},
+    tableCell: {fontSize: 14,color: '#064e3b'},
+    tableCell2: {fontSize: 14,color: '#fff'},
+    noTripsText: {padding: 14,textAlign: 'center',color: '#6b7280',fontStyle: 'italic'},
 };

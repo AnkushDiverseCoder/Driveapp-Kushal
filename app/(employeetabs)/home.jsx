@@ -53,7 +53,8 @@ export default function Home() {
             }
 
             const today = new Date();
-            const foundTodayEntry = entryList.data.documents.find((entry) => {
+            const documents = entryList?.data?.documents ?? [];
+            const foundTodayEntry = documents.find((entry) => {
                 const entryDate = new Date(entry.$createdAt);
                 return isSameDay(today, entryDate) && entry.userEmail === currentUser.email;
             });
@@ -82,7 +83,6 @@ export default function Home() {
 
     return (
         <ScrollView className="flex-1 bg-gray-100 px-4 pt-6 pb-12">
-            
             {/* Centered Heading */}
             <View className="relative">
                 <View className="bg-[#064e3b] px-4 py-2 rounded-t-xl shadow-sm">
@@ -92,18 +92,14 @@ export default function Home() {
                 </View>
             </View>
 
-
-
             {/* Compact User Info Box */}
             <View className="bg-white rounded-b-xl px-4 py-4 mb-4 shadow-sm border border-gray-200 flex-row items-center">
-                {/* Optional Avatar Circle */}
                 <View className="w-12 h-12 rounded-full bg-[#064e3b] items-center justify-center mr-4">
                     <Text className="text-white font-bold text-lg">
                         {user?.name?.charAt(0).toUpperCase() || '?'}
                     </Text>
                 </View>
 
-                {/* User Details */}
                 <View className="flex-1">
                     <Text className="text-xs text-gray-500">Username</Text>
                     <Text className="text-base font-semibold text-gray-900 mb-1">{user?.name}</Text>
@@ -112,7 +108,6 @@ export default function Home() {
                     <Text className="text-sm text-gray-800">{user?.email}</Text>
                 </View>
             </View>
-
 
             {/* Status + Date Row */}
             <View className="flex-row space-x-4 mb-6 ">
@@ -134,7 +129,6 @@ export default function Home() {
                 </TouchableOpacity>
             </View>
 
-            {/* Date Modal Picker */}
             <DateTimePickerModal
                 isVisible={isDatePickerVisible}
                 mode="date"
@@ -145,7 +139,6 @@ export default function Home() {
 
             {/* Trip Summary */}
             {tripData && (
-                <>
                 <View className="bg-white rounded-2xl p-5 shadow-sm border border-gray-200 mb-6">
                     <Text className="text-lg font-semibold text-gray-800 mb-4">Trip Summary</Text>
                     <View className="flex-row justify-between mb-3">
@@ -161,13 +154,11 @@ export default function Home() {
                         </View>
                     </View>
                 </View>
-                </>
             )}
-q
+
             {/* Trip Details Grid */}
             {tripData?.allTrips?.length > 0 && (
                 <>
-                    {/* Centered Heading */}
                     <View className="relative">
                         <View className="bg-[#064e3b] px-4 py-2 rounded-t-xl shadow-sm">
                             <Text className="text-white text-center font-bold text-lg tracking-wide">
@@ -179,7 +170,7 @@ q
                         {tripData.allTrips.map((trip, index) => (
                             <View
                                 key={trip.$id}
-                                className="bg-white border border-gray-200  shadow-sm px-4 py-4"
+                                className={`bg-white border ${trip.edited ? 'border-green-500' : 'border-gray-200'} shadow-sm px-4 py-4`}
                             >
                                 <Text className="font-semibold text-gray-800 mb-3">Trip #{trip.tripId}</Text>
                                 <View className="flex-row flex-wrap justify-between">
@@ -207,6 +198,7 @@ q
                             </View>
                         ))}
                     </View>
+
                 </>
             )}
 

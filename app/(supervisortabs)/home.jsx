@@ -9,66 +9,14 @@ import {
     Platform,
     Modal,
     FlatList,
+    Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import CustomAlert from '../../components/CustomAlert';
 import dieselService from '../../services/dailyEntryFormService';
 import authService from '../../services/authService';
-
-const vehicleTypesMap = {
-    XYLO: 10, INNOVA: 12, WINGER: 9, 'BOLERO NEO': 13,
-    MARAZZO: 12, 'TIGOR XPRES-T SEDAN EV': 0,
-    KIA: 12, 'MG  ZS EV': 0,
-};
-
-const vehicleNumbersList = [
-    { number: 'TS09UA9275', type: 'XYLO', mileage: 10 },
-    { number: 'TS09UA9278', type: 'XYLO', mileage: 10 },
-    { number: 'TS09UB1415', type: 'XYLO', mileage: 10 },
-    { number: 'TS09UB1416', type: 'XYLO', mileage: 10 },
-    { number: 'TS09UB5527', type: 'XYLO', mileage: 10 },
-    { number: 'TS09UB5531', type: 'XYLO', mileage: 10 },
-    { number: 'TS09UB5532', type: 'XYLO', mileage: 10 },
-    { number: 'TS09UB5533', type: 'XYLO', mileage: 10 },
-    { number: 'TS09UB5534', type: 'XYLO', mileage: 10 },
-    { number: 'TS09UB5536', type: 'XYLO', mileage: 10 },
-    { number: 'TS09UB8821', type: 'INNOVA', mileage: 12 },
-    { number: 'TS09UB8822', type: 'INNOVA', mileage: 12 },
-    { number: 'TS09UB8823', type: 'INNOVA', mileage: 12 },
-    { number: 'TS09UB8825', type: 'INNOVA', mileage: 12 },
-    { number: 'TS09UC1909', type: 'WINGER', mileage: 9 },
-    { number: 'TS09UC1910', type: 'WINGER', mileage: 9 },
-    { number: 'TS09UC1911', type: 'WINGER', mileage: 9 },
-    { number: 'TS09UC1912', type: 'WINGER', mileage: 9 },
-    { number: 'TS09UC1913', type: 'WINGER', mileage: 9 },
-    { number: 'TS09UD9032', type: 'BOLERO NEO', mileage: 13 },
-    { number: 'TS09UD9033', type: 'BOLERO NEO', mileage: 13 },
-    { number: 'TS09UD9088', type: 'BOLERO NEO', mileage: 13 },
-    { number: 'TS09UD9089', type: 'BOLERO NEO', mileage: 13 },
-    { number: 'TS09UD9098', type: 'BOLERO NEO', mileage: 13 },
-    { number: 'TS09UD9353', type: 'BOLERO NEO', mileage: 13 },
-    { number: 'TS09UD9354', type: 'BOLERO NEO', mileage: 13 },
-    { number: 'TS09UD9355', type: 'BOLERO NEO', mileage: 13 },
-    { number: 'TS09UD9356', type: 'BOLERO NEO', mileage: 13 },
-    { number: 'TS09UD9357', type: 'BOLERO NEO', mileage: 13 },
-    { number: 'TS09UE0058', type: 'MARAZZO', mileage: 12 },
-    { number: 'TS09UE0059', type: 'MARAZZO', mileage: 12 },
-    { number: 'TS09UE0646', type: 'TIGOR XPRES-T SEDAN EV', mileage: 0 },
-    { number: 'TS09UE0647', type: 'TIGOR XPRES-T SEDAN EV', mileage: 0 },
-    { number: 'TS09UE1009', type: 'KIA', mileage: 12 },
-    { number: 'TG09T0662', type: 'INNOVA', mileage: 12 },
-    { number: 'TG09T0694', type: 'INNOVA', mileage: 12 },
-    { number: 'TG09T0695', type: 'INNOVA', mileage: 12 },
-    { number: 'TG09T0696', type: 'INNOVA', mileage: 12 },
-    { number: 'TG09T0697', type: 'INNOVA', mileage: 12 },
-    { number: 'TG09T0698', type: 'INNOVA', mileage: 12 },
-    { number: 'TG09T4672', type: 'MG  ZS EV', mileage: 0 },
-    { number: 'TG09T4752', type: 'KIA', mileage: 12 },
-    { number: 'TG09T4753', type: 'KIA', mileage: 12 },
-    { number: 'TG09T4754', type: 'KIA', mileage: 12 },
-    { number: 'TG09T4755', type: 'KIA', mileage: 12 },
-    { number: 'TG09T4763', type: 'KIA', mileage: 12 },
-];
+import vehicleService from '../../services/vechicleService'; // Import the vehicle service
+import tripService from '../../services/tripService';
 
 export default function DieselForm() {
     const [form, setForm] = useState({
@@ -87,9 +35,37 @@ export default function DieselForm() {
     const [employeeSearch, setEmployeeSearch] = useState('');
     const [selectedEmployee, setSelectedEmployee] = useState({ name: '', email: '' });
 
+    const [vehicleList, setVehicleList] = useState([]); // State for fetched vehicles
     const [mileage, setMileage] = useState(0);
     const [totalDistance, setTotalDistance] = useState(null);
-    
+
+    const [tripCounts, setTripCounts] = useState({});
+    const [users, setUsers] = useState([]);
+    const [tripSearch, setTripSearch] = useState('');
+
+    const filteredTripEntries = Object.entries(tripCounts).filter(([email]) => {
+        const user = users.find(u => u.email === email);
+        return user?.displayName?.toLowerCase().includes(tripSearch.toLowerCase());
+    });
+    useEffect(() => {
+        fetchAllData();
+    }, []);
+
+    const fetchAllData = async () => {
+        try {
+            const allUsers = await authService.fetchAllUsers();
+            const unique = Array.from(new Map(allUsers.data.map(u => [u.email, u])).values());
+
+            setUsers(unique);
+            const counts = await tripService.fetchTodayUserTripCounts();
+
+            setTripCounts(counts.data || {});
+        } catch (e) {
+            Alert.alert('Error', e.message || 'Failed to fetch data');
+        } finally {
+            setLoading(false);
+        }
+    };
 
     useEffect(() => {
         async function fetchEmployees() {
@@ -99,7 +75,7 @@ export default function DieselForm() {
                 return;
             }
             const employees = data.filter((u) => u.labels?.includes('employee'));
-            console.log(employees)
+            console.log(employees);
             setEmployeeList(employees);
             setFilteredEmployees(employees);
         }
@@ -122,6 +98,25 @@ export default function DieselForm() {
         }
     }, [employeeSearch, employeeList]);
 
+    useEffect(() => {
+        const fetchVehicles = async () => {
+            try {
+                const response = await vehicleService.listVehicles();
+                const documents = response?.data?.data || [];
+                const fetchedList = documents.map(doc => ({
+                    number: doc.vehicleNumber || 'Unknown',
+                    type: doc.vehicleType || 'Unknown',
+                    mileage: doc.mileage || 0, // Assuming mileage is part of the fetched data
+                }));
+                setVehicleList(fetchedList);
+            } catch (error) {
+                console.error('Error fetching vehicles:', error);
+                setVehicleList([]); // Fallback to empty
+            }
+        };
+        fetchVehicles();
+    }, []);
+
     const handleChange = (field, value) => {
         setForm((prev) => ({ ...prev, [field]: value }));
         setErrors((prev) => ({ ...prev, [field]: '' }));
@@ -133,27 +128,26 @@ export default function DieselForm() {
             vehicleNumber: vehicle.number,
             vehicleType: vehicle.type,
         }));
+        setMileage(vehicle.mileage); // Set mileage based on selected vehicle
         setErrors((prev) => ({ ...prev, vehicleNumber: '', vehicleType: '' }));
         setVehicleModalVisible(false);
     };
 
     const filteredVehicleNumbers = useMemo(() => {
-        if (!searchQuery) return vehicleNumbersList;
+        if (!searchQuery) return vehicleList;
         const lower = searchQuery.toLowerCase();
-        return vehicleNumbersList.filter(
+        return vehicleList.filter(
             (v) => v.number.toLowerCase().includes(lower) || v.type.toLowerCase().includes(lower)
         );
-    }, [searchQuery]);
+    }, [searchQuery, vehicleList]);
 
     useEffect(() => {
-        const newMileage = vehicleTypesMap[form.vehicleType] ?? 0;
-        setMileage(newMileage);
-        if (form.fuelQuantity && newMileage > 0) {
-            setTotalDistance(parseFloat(form.fuelQuantity) * newMileage);
+        if (form.fuelQuantity && mileage > 0) {
+            setTotalDistance(parseFloat(form.fuelQuantity) * mileage);
         } else {
             setTotalDistance(null);
         }
-    }, [form.vehicleType, form.fuelQuantity]);
+    }, [form.fuelQuantity, mileage]);
 
     const validate = () => {
         const newErrors = {};
@@ -185,7 +179,6 @@ export default function DieselForm() {
     const handleSubmit = async () => {
         if (!validate()) return;
         setLoading(true);
-        const mileage = vehicleTypesMap[form.vehicleType] || 0;
         const totalDistance = parseFloat(form.fuelQuantity) * mileage;
         const payload = {
             ...form,
@@ -197,7 +190,6 @@ export default function DieselForm() {
             createdAt: new Date().toISOString(),
         };
         try {
-            // eslint-disable-next-line no-unused-vars
             const { data, error } = await dieselService.createDailyEntry(payload);
             setLoading(false);
             if (error) {
@@ -287,6 +279,52 @@ export default function DieselForm() {
                     >
                         <Text className="text-white text-xl font-semibold">{loading ? 'Submitting...' : 'Submit'}</Text>
                     </TouchableOpacity>
+                    
+                    <Text style={styles.sectionTitle2}>Todays Trips (6 AM to 5:59 AM)</Text>
+
+                    {/* Search bar */}
+                    <View style={styles.searchBarContainer}>
+                        <TextInput
+                            style={styles.searchBar}
+                            placeholder="Search by Display Name..."
+                            placeholderTextColor="#888"
+                            value={tripSearch}
+                            onChangeText={setTripSearch}
+                        />
+                    </View>
+                    {/* Table layout */}
+                    <View style={styles.tableWrapper}>
+                        {/* Table Header */}
+                        <View style={styles.tableRowHeader}>
+                            <Text style={[styles.tableCell2, { flex: 2 }]}>Display Name</Text>
+                            <Text style={[styles.tableCell2, { flex: 1, textAlign: 'right' }]}>Total Trips Count </Text>
+                        </View>
+
+                        {/* Table Body */}
+                        {filteredTripEntries.length === 0 ? (
+                            <Text style={styles.noTripsText}>No trips found for today.</Text>
+                        ) : (
+                            filteredTripEntries.map(([email, count], idx) => {
+                                const user = users.find(u => u.email === email);
+                                return (
+                                    <View
+                                        key={email}
+                                        style={[
+                                            styles.tableRow,
+                                            { backgroundColor: idx % 2 === 0 ? '#ffffff' : '#f6fef9' },
+                                        ]}
+                                    >
+                                        <Text style={[styles.tableCell, { flex: 2 }]}>
+                                            {user?.displayName || 'Unknown'}
+                                        </Text>
+                                        <Text style={[styles.tableCell, { flex: 1, textAlign: 'right' }]}>
+                                            {count}
+                                        </Text>
+                                    </View>
+                                );
+                            })
+                        )}
+                    </View>
                 </ScrollView>
 
                 {/* Vehicle Modal */}
@@ -357,4 +395,17 @@ export default function DieselForm() {
             />
         </SafeAreaView>
     );
+}
+
+
+const styles = {
+    sectionTitle2: { fontSize: 20, fontWeight: '600', color: '#064e3b', marginTop: 30, marginBottom: 14 },
+    searchBarContainer: { marginBottom: 12 },
+    searchBar: { backgroundColor: '#fff', borderColor: '#064e3b', borderWidth: 1.2, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 14, fontSize: 15, color: '#111' },
+    tableWrapper: { borderWidth: 1.5, borderColor: '#064e3b', borderRadius: 12, overflow: 'hidden', backgroundColor: '#fff' },
+    tableRowHeader: { flexDirection: 'row', backgroundColor: '#064e3b', paddingVertical: 10, paddingHorizontal: 10 },
+    tableRow: { flexDirection: 'row', paddingVertical: 12, paddingHorizontal: 10, borderBottomWidth: 1, borderColor: '#e0e0e0' },
+    tableCell: { fontSize: 14, color: '#064e3b' },
+    tableCell2: { fontSize: 14, color: '#fff' },
+    noTripsText: { padding: 14, textAlign: 'center', color: '#6b7280', fontStyle: 'italic' },
 }

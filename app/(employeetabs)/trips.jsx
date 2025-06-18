@@ -43,6 +43,7 @@ export default function TripUpdateForm() {
             }
 
             const latestTrip = res.data;
+            console.log("Latest Trip:", latestTrip);
             setTrip(latestTrip);
             setTripId(latestTrip.tripId || "");
             setStartKm(latestTrip.startKm?.toString() || "");
@@ -125,9 +126,6 @@ export default function TripUpdateForm() {
             <View style={styles.container}>
                 <Text style={styles.label}>Site Name</Text>
                 <Text style={styles.readOnlyField}>{trip.siteName || "-"}</Text>
-
-                <Text style={styles.label}>Location</Text>
-                <Text style={styles.readOnlyField}>{trip.location || "-"}</Text>
 
                 {/* Editable Trip ID */}
                 <Text style={styles.label}>Trip ID</Text>

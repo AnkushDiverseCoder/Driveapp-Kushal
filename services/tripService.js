@@ -83,7 +83,18 @@ const tripService = {
             pageSize,
         };
     },
+    async updateTripAsEdited(tripId, data) {
+        const updatedData = {
+            ...data,
+            edited: true,
+        };
 
+        const response = await databaseService.updateDocument(dbId, colId, tripId, updatedData);
+
+        if (response.error) return { error: response.error };
+
+        return { data: response };
+    },
     async fetchTripsByDate(userEmail, targetDateStr) {
         const start = new Date(targetDateStr);
         const end = new Date(start);
@@ -123,6 +134,44 @@ const tripService = {
         if (!trip) return { error: "No trip found for this user" };
         return { data: trip };
     },
+
+    async fetchTodayUserTripCounts() {
+        const now = new Date();
+
+        // Determine today's 6:00 AM
+        const todayStart = new Date(now);
+        todayStart.setHours(6, 0, 0, 0);
+
+        // If current time is before 6:00 AM, shift to previous day 6:00 AM
+        if (now < todayStart) {
+            todayStart.setDate(todayStart.getDate() - 1);
+        }
+
+        // End is 5:59:59 AM the next day
+        const tomorrowEnd = new Date(todayStart);
+        tomorrowEnd.setDate(tomorrowEnd.getDate() + 1);
+        tomorrowEnd.setHours(5, 59, 59, 999);
+
+        const response = await databaseService.listAllDocuments(dbId, colId, [
+            Query.greaterThanEqual("$createdAt", todayStart.toISOString()),
+            Query.lessThan("$createdAt", tomorrowEnd.toISOString()),
+        ]);
+
+        if (response.error) return { error: response.error };
+
+        const userTripCounts = {};
+
+        (response.data || []).forEach((trip) => {
+            const userEmail = trip.userEmail;
+            if (!userTripCounts[userEmail]) {
+                userTripCounts[userEmail] = 0;
+            }
+            userTripCounts[userEmail]++;
+        });
+
+        return { data: userTripCounts };
+    },
+
 
     async fetchTripsByDateOnly(startDateStr, endDateStr) {
         if (!startDateStr || !endDateStr) return { data: [] };
@@ -182,9 +231,24 @@ const tripService = {
         }
 
         const newId = ID.unique();
-        const response = await databaseService.createDocument(dbId, colId, newId, data);
-        if (response.error) return { error: response.error };
-        return { data: response, error: null };
+
+        try {
+            const response = await databaseService.createDocument(dbId, colId, newId, data);
+            return { data: response, error: null };
+        } catch (err) {
+            // Check for duplicate tripId error
+            if (err?.message?.includes('Duplicate attribute: tripId')) {
+                return {
+                    data: null,
+                    error: "Trip ID already exists. Please enter a unique Trip ID.",
+                };
+            }
+
+            return {
+                data: null,
+                error: err?.message || "Unexpected error while creating trip.",
+            };
+        }
     },
 
     async updateTrip(tripId, data) {
