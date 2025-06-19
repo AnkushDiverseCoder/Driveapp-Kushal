@@ -27,7 +27,7 @@ const PAGE_SIZE = 20;
 const ATTACHED_FILTER_OPTIONS = [
     { label: 'All', value: null },
     { label: 'Attached', value: true },
-    { label: 'Not Attached', value: false },
+    { label: 'Fleet', value: false },
 ];
 
 export default function TripDetails() {

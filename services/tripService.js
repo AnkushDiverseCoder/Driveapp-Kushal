@@ -220,6 +220,7 @@ const tripService = {
     async createTrip(data) {
         const latestTrip = await this.fetchLatestUserTrip(data.userEmail);
 
+        // Prevent new trip if last one is incomplete
         if (latestTrip.data) {
             const { startKm, endKm } = latestTrip.data;
             if (!(startKm > 0 && endKm > 0)) {
@@ -230,24 +231,40 @@ const tripService = {
             }
         }
 
-        const newId = ID.unique();
+        // 🔍 Check if tripId already exists
+        const existingTrip = await this.findTripByTripId(data.tripId);
+        if (existingTrip) {
+            return {
+                data: null,
+                error: "Trip ID already exists. Please enter a unique Trip ID.",
+            };
+        }
+
+        const newDocId = ID.unique(); // Document ID is separate from tripId
 
         try {
-            const response = await databaseService.createDocument(dbId, colId, newId, data);
+            const response = await databaseService.createDocument(dbId, colId, newDocId, data);
             return { data: response, error: null };
         } catch (err) {
-            // Check for duplicate tripId error
-            if (err?.message?.includes('Duplicate attribute: tripId')) {
-                return {
-                    data: null,
-                    error: "Trip ID already exists. Please enter a unique Trip ID.",
-                };
-            }
-
             return {
                 data: null,
                 error: err?.message || "Unexpected error while creating trip.",
             };
+        }
+    },
+
+    async findTripByTripId(tripId) {
+        try {
+            const results = await databaseService.listDocuments(
+                dbId,
+                colId,
+                [Query.equal("tripId", tripId)]
+            );
+
+            return results.documents[0] || null;
+        } catch (err) {
+            console.error("Error checking tripId:", err);
+            return null; // Fail-safe
         }
     },
 

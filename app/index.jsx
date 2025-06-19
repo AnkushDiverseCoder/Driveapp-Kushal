@@ -61,7 +61,7 @@ export default function WelcomeScreen() {
       } catch {
         router.replace('/auth/login');
       }
-    }, 3000);
+    }, 1500);
 
     return () => clearTimeout(timeout);
   }, [router, loading, error, dotScale, fadeInText]);

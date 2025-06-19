@@ -209,6 +209,12 @@ export default function Home() {
             >
                 <Text className="text-white text-center font-bold text-base">Update Login Credentials</Text>
             </TouchableOpacity>
+            <TouchableOpacity
+                onPress={() => router.push('/(employeetabs)/complaint/complaintscreen')}
+                className="mt-10 bg-green-900 py-4 rounded-xl shadow-sm"
+            >
+                <Text className="text-white text-center font-bold text-base">Complaint List</Text>
+            </TouchableOpacity>
         </ScrollView>
     );
 }

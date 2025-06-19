@@ -145,6 +145,10 @@ export default function TravelForm() {
             newErrors.vehicleNumber = 'Please select a vehicle number'
             valid = false
         }
+        if (!form.startKm && form.startKm !== 0 && form.startKm !== '') {
+            newErrors.startKm = 'Please Enter a Start Km';
+            valid = false;
+        }
         if (form.startKm && form.endKm && +form.startKm > +form.endKm) {
             newErrors.endKm = 'End KM must be greater than Start KM'
             valid = false

@@ -11,7 +11,8 @@ const config = {
         users : process.env.EXPO_PUBLIC_APPWRITE_COL_USERS,
         vehicleEntry: process.env.EXPO_PUBLIC_APPWRITE_COL_VEHICLE_ENTRY,
         advanceEntry:process.env.EXPO_PUBLIC_APPWRITE_COL_ADVANCE_ENTRY,
-        clientList:process.env.EXPO_PUBLIC_APPWRITE_COL_CLIENT_ENTRY
+        clientList:process.env.EXPO_PUBLIC_APPWRITE_COL_CLIENT_ENTRY,
+        employeeComplaint:process.env.EXPO_PUBLIC_APPWRITE_COL_USER_COMPLAINT
     }
 };
 

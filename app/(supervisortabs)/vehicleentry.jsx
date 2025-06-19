@@ -9,7 +9,7 @@ import {
     KeyboardAvoidingView,
     Platform,
     ActivityIndicator,
-    Modal,
+    // Modal,
 } from 'react-native';
 import vehicleService from '../../services/vechicleService';
 
@@ -25,14 +25,14 @@ export default function VehicleEntryScreen() {
     const [inputErrors, setInputErrors] = useState({});
     const [loading, setLoading] = useState(false);
     const [vehicles, setVehicles] = useState([]);
-    const [editModalVisible, setEditModalVisible] = useState(false);
-    const [editingVehicle, setEditingVehicle] = useState(null);
-    const [editForm, setEditForm] = useState({
-        vehicleNumber: '',
-        vehicleType: '',
-        mileage: '',
-        labels: 'employee',
-    });
+    // const [editModalVisible, setEditModalVisible] = useState(false);
+    // const [editingVehicle, setEditingVehicle] = useState(null);
+    // const [editForm, setEditForm] = useState({
+    //     vehicleNumber: '',
+    //     vehicleType: '',
+    //     mileage: '',
+    //     labels: 'employee',
+    // });
     const [filterLabel, setFilterLabel] = useState('All');
 
     const handleChange = (key, value) => {
@@ -84,53 +84,53 @@ export default function VehicleEntryScreen() {
         }
     };
 
-    const handleDelete = async (id) => {
-        const res = await vehicleService.deleteVehicle(id);
-        if (res.success) {
-            setVehicles((prev) => prev.filter((v) => v.$id !== id));
-        } else {
-            Alert.alert('Error', res.error || 'Failed to delete');
-        }
-    };
+    // const handleDelete = async (id) => {
+    //     const res = await vehicleService.deleteVehicle(id);
+    //     if (res.success) {
+    //         setVehicles((prev) => prev.filter((v) => v.$id !== id));
+    //     } else {
+    //         Alert.alert('Error', res.error || 'Failed to delete');
+    //     }
+    // };
 
-    const openEditModal = (vehicle) => {
-        setEditingVehicle(vehicle);
-        setEditForm({
-            vehicleNumber: vehicle.vehicleNumber,
-            vehicleType: vehicle.vehicleType,
-            mileage: vehicle.mileage?.toString() || '',
-            labels: vehicle.labels || 'employee',
-        });
-        setEditModalVisible(true);
-    };
+    // const openEditModal = (vehicle) => {
+    //     setEditingVehicle(vehicle);
+    //     setEditForm({
+    //         vehicleNumber: vehicle.vehicleNumber,
+    //         vehicleType: vehicle.vehicleType,
+    //         mileage: vehicle.mileage?.toString() || '',
+    //         labels: vehicle.labels || 'employee',
+    //     });
+    //     setEditModalVisible(true);
+    // };
 
-    const handleEditSubmit = async () => {
-        if (
-            !editForm.vehicleNumber.trim() ||
-            !editForm.vehicleType.trim() ||
-            isNaN(editForm.mileage) ||
-            !editForm.labels
-        ) {
-            Alert.alert('Validation', 'All fields are required and mileage must be numeric');
-            return;
-        }
+    // const handleEditSubmit = async () => {
+    //     if (
+    //         !editForm.vehicleNumber.trim() ||
+    //         !editForm.vehicleType.trim() ||
+    //         isNaN(editForm.mileage) ||
+    //         !editForm.labels
+    //     ) {
+    //         Alert.alert('Validation', 'All fields are required and mileage must be numeric');
+    //         return;
+    //     }
 
-        const res = await vehicleService.updateVehicle(editingVehicle.$id, {
-            vehicleNumber: editForm.vehicleNumber.trim(),
-            vehicleType: editForm.vehicleType.trim(),
-            mileage: parseInt(editForm.mileage),
-            labels: editForm.labels,
-        });
+    //     const res = await vehicleService.updateVehicle(editingVehicle.$id, {
+    //         vehicleNumber: editForm.vehicleNumber.trim(),
+    //         vehicleType: editForm.vehicleType.trim(),
+    //         mileage: parseInt(editForm.mileage),
+    //         labels: editForm.labels,
+    //     });
 
-        if (res.success) {
-            setVehicles((prev) =>
-                prev.map((v) => (v.$id === editingVehicle.$id ? res.data : v))
-            );
-            setEditModalVisible(false);
-        } else {
-            Alert.alert('Error', res.error || 'Failed to update');
-        }
-    };
+    //     if (res.success) {
+    //         setVehicles((prev) =>
+    //             prev.map((v) => (v.$id === editingVehicle.$id ? res.data : v))
+    //         );
+    //         setEditModalVisible(false);
+    //     } else {
+    //         Alert.alert('Error', res.error || 'Failed to update');
+    //     }
+    // };
 
     const filteredVehicles = filterLabel === 'All'
         ? vehicles
@@ -221,19 +221,11 @@ export default function VehicleEntryScreen() {
                         <Text className="text-gray-700">Type: {vehicle.vehicleType}</Text>
                         <Text className="text-gray-700">Mileage: {vehicle.mileage}</Text>
                         <Text className="text-gray-700">Label: {vehicle.labels}</Text>
-                        <View className="flex-row gap-3 mt-2">
-                            <TouchableOpacity onPress={() => openEditModal(vehicle)} className="bg-yellow-500 px-3 py-2 rounded">
-                                <Text className="text-white font-medium">Edit</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity onPress={() => handleDelete(vehicle.$id)} className="bg-red-600 px-3 py-2 rounded">
-                                <Text className="text-white font-medium">Delete</Text>
-                            </TouchableOpacity>
-                        </View>
                     </View>
                 ))}
             </ScrollView>
 
-            <Modal visible={editModalVisible} transparent animationType="slide">
+            {/* <Modal visible={editModalVisible} transparent animationType="slide">
                 <View className="flex-1 justify-center items-center bg-black bg-opacity-50 px-4">
                     <View className="bg-white rounded-xl w-full p-5">
                         <Text className="text-lg font-bold text-[#064e3b] mb-4">Edit Vehicle</Text>
@@ -274,7 +266,7 @@ export default function VehicleEntryScreen() {
                         </View>
                     </View>
                 </View>
-            </Modal>
+            </Modal> */}
         </KeyboardAvoidingView>
     );
 }

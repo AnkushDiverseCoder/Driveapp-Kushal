@@ -2,12 +2,15 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
     ActivityIndicator,
+    KeyboardAvoidingView,
     ScrollView,
     StatusBar,
     Text,
     TextInput,
     TouchableOpacity,
+    TouchableWithoutFeedback,
     View,
+    Platform
 } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
 
@@ -90,6 +93,11 @@ export default function RegisterScreen() {
     const router = useRouter();
 
     return (
+    <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
         <ScrollView contentContainerStyle={{ flexGrow: 1, padding: 24, justifyContent: 'center', backgroundColor: '#ffffff' }}>
             <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
 
@@ -268,5 +276,7 @@ export default function RegisterScreen() {
                 </View>
             </View>
         </ScrollView>
+        </TouchableWithoutFeedback>
+    </KeyboardAvoidingView>
     );
 }

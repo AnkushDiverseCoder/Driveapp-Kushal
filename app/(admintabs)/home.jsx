@@ -298,6 +298,9 @@ export default function AdminDashboard() {
                 <TouchableOpacity onPress={() => router.replace('/(admintabs)/component/clientservicescreen')} style={styles.btn}>
                     {exportingTrip ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnText}>Client Service Screen</Text>}
                 </TouchableOpacity>
+                <TouchableOpacity onPress={() => router.replace('/(admintabs)/component/complaintscreen')} style={styles.btn}>
+                    {exportingTrip ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnText}>Client Complaint</Text>}
+                </TouchableOpacity>
             </View>
             <Text style={styles.sectionTitle2}>Todays Trips (6 AM to 5:59 AM)</Text>
 
