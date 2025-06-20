@@ -78,7 +78,7 @@ export default function TripDetails() {
             // Build user email list then get display names
             const emails = [...new Set(rawTrips.map(t => t.userEmail))];
             const userMap = await authService.getUsersByEmails(emails);
-
+            console.log('User Map:', userMap);
             const enriched = rawTrips.map(trip => ({
                 ...trip,
                 username: userMap?.[trip.userEmail]?.displayName || 'Unknown',
@@ -296,7 +296,7 @@ export default function TripDetails() {
                         $createdAt,
                     }) => ({
                         ID: $id,
-                        Username: username,
+                        'Display Name': username,
                         Email: userEmail,
                         Site: siteName,
                         'Trip ID': tripId,

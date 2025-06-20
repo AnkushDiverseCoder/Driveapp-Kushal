@@ -23,6 +23,12 @@ const tabs = [
         icon: 'https://img.icons8.com/ios-filled/50/6b7280/document.png',
         iconActive: 'https://img.icons8.com/ios-filled/50/16a34a/document.png',
     },
+    {
+        name: 'employeetrackingscreen',
+        title: 'Employee Tracking',
+        icon: 'https://img.icons8.com/ios-filled/50/6b7280/document.png',
+        iconActive: 'https://img.icons8.com/ios-filled/50/16a34a/document.png',
+    },
 ];
 
 export default function TabsLayout() {

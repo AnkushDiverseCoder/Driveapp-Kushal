@@ -1,22 +1,17 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import {
-    View,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    ScrollView,
-    KeyboardAvoidingView,
-    Platform,
-    Modal,
-    FlatList,
-    Alert,
+    View, Text, TextInput, TouchableOpacity, ScrollView,
+    KeyboardAvoidingView, Platform, Modal, FlatList, Alert, Switch,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import DateTimePickerModal from 'react-native-modal-datetime-picker';
+
 import CustomAlert from '../../components/CustomAlert';
 import dieselService from '../../services/dailyEntryFormService';
 import authService from '../../services/authService';
-import vehicleService from '../../services/vechicleService'; // Import the vehicle service
+import vehicleService from '../../services/vechicleService';
 import tripService from '../../services/tripService';
+import employeeGlobalService from '../../services/employeeGlobalService';
 
 export default function DieselForm() {
     const [form, setForm] = useState({
@@ -25,43 +20,41 @@ export default function DieselForm() {
     const [alert, setAlert] = useState({ visible: false, title: '', message: '' });
     const [errors, setErrors] = useState({});
     const [loading, setLoading] = useState(false);
-
     const [vehicleModalVisible, setVehicleModalVisible] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
-
     const [employeeModalVisible, setEmployeeModalVisible] = useState(false);
     const [employeeList, setEmployeeList] = useState([]);
     const [filteredEmployees, setFilteredEmployees] = useState([]);
     const [employeeSearch, setEmployeeSearch] = useState('');
     const [selectedEmployee, setSelectedEmployee] = useState({ name: '', email: '' });
-
-    const [vehicleList, setVehicleList] = useState([]); // State for fetched vehicles
+    const [vehicleList, setVehicleList] = useState([]);
     const [mileage, setMileage] = useState(0);
     const [totalDistance, setTotalDistance] = useState(null);
-
     const [tripCounts, setTripCounts] = useState({});
     const [users, setUsers] = useState([]);
     const [tripSearch, setTripSearch] = useState('');
+    const [tripCustomDateEnabled, setTripCustomDateEnabled] = useState(false);
+    const [tripDate, setTripDate] = useState(null);
+    const [tripDatePickerVisible, setTripDatePickerVisible] = useState(false);
 
     const filteredTripEntries = Object.entries(tripCounts).filter(([email]) => {
         const user = users.find(u => u.email === email);
         return user?.displayName?.toLowerCase().includes(tripSearch.toLowerCase());
     });
+
     useEffect(() => {
         fetchAllData();
     }, []);
 
-    const fetchAllData = async () => {
+    const fetchAllData = async (date = null) => {
         try {
             const allUsers = await authService.fetchAllUsers();
             const unique = Array.from(new Map(allUsers.data.map(u => [u.email, u])).values());
-
             setUsers(unique);
-            const counts = await tripService.fetchTodayUserTripCounts();
-
+            const counts = await tripService.fetchTodayUserTripCounts(date);
             setTripCounts(counts.data || {});
         } catch (e) {
-            Alert.alert('Error', e.message || 'Failed to fetch data');
+            Alert.alert('Error', e.message || 'Failed to fetch trip data');
         } finally {
             setLoading(false);
         }
@@ -75,7 +68,6 @@ export default function DieselForm() {
                 return;
             }
             const employees = data.filter((u) => u.labels?.includes('employee'));
-            console.log(employees);
             setEmployeeList(employees);
             setFilteredEmployees(employees);
         }
@@ -106,12 +98,13 @@ export default function DieselForm() {
                 const fetchedList = documents.map(doc => ({
                     number: doc.vehicleNumber || 'Unknown',
                     type: doc.vehicleType || 'Unknown',
-                    mileage: doc.mileage || 0, // Assuming mileage is part of the fetched data
+                    mileage: doc.mileage || 0,
                 }));
                 setVehicleList(fetchedList);
             } catch (error) {
-                console.error('Error fetching vehicles:', error);
-                setVehicleList([]); // Fallback to empty
+                console.error('Failed to fetch vehicles:', error);
+
+                setVehicleList([]);
             }
         };
         fetchVehicles();
@@ -128,7 +121,7 @@ export default function DieselForm() {
             vehicleNumber: vehicle.number,
             vehicleType: vehicle.type,
         }));
-        setMileage(vehicle.mileage); // Set mileage based on selected vehicle
+        setMileage(vehicle.mileage);
         setErrors((prev) => ({ ...prev, vehicleNumber: '', vehicleType: '' }));
         setVehicleModalVisible(false);
     };
@@ -179,6 +172,7 @@ export default function DieselForm() {
     const handleSubmit = async () => {
         if (!validate()) return;
         setLoading(true);
+
         const totalDistance = parseFloat(form.fuelQuantity) * mileage;
         const payload = {
             ...form,
@@ -189,27 +183,37 @@ export default function DieselForm() {
             userEmail: selectedEmployee.email,
             createdAt: new Date().toISOString(),
         };
+
         try {
             const { data, error } = await dieselService.createDailyEntry(payload);
-            setLoading(false);
-            if (error) {
-                setAlert({
-                    visible: true, title: 'Error', message: error.message || 'Failed to submit diesel entry.',
-                });
-            } else {
+            if (data) {
                 setAlert({ visible: true, title: 'Success', message: 'Diesel entry submitted successfully!' });
-                setForm({ meterReading: '', fuelQuantity: '', vehicleNumber: '', vehicleType: '' });
-                setSelectedEmployee({ name: '', email: '' });
-                setVehicleModalVisible(false);
-                setEmployeeModalVisible(false);
-                setSearchQuery('');
-                setEmployeeSearch('');
+            } else
+            if (error) {
+                setLoading(false);
+                setAlert({ visible: true, title: 'Error', message: error.message || 'Failed to submit diesel entry.' });
+                return;
             }
+
+            const globalRes = await employeeGlobalService.createOrUpdateEntry(form, selectedEmployee, mileage);
+
+            if (globalRes.error) {
+                setAlert({ visible: true, title: 'Warning', message: 'Diesel entry saved, but global tracking failed: ' + globalRes.error });
+            } else {
+                setAlert({ visible: true, title: 'Success', message: 'Diesel entry and tracking updated successfully!' });
+            }
+
+            setForm({ meterReading: '', fuelQuantity: '', vehicleNumber: '', vehicleType: '' });
+            setSelectedEmployee({ name: '', email: '' });
+            setSearchQuery('');
+            setEmployeeSearch('');
         } catch (e) {
-            setLoading(false);
             setAlert({ visible: true, title: 'Error', message: 'Unexpected error: ' + e.message });
+        } finally {
+            setLoading(false);
         }
     };
+
 
     return (
         <SafeAreaView className="flex-1 bg-white">
@@ -279,10 +283,42 @@ export default function DieselForm() {
                     >
                         <Text className="text-white text-xl font-semibold">{loading ? 'Submitting...' : 'Submit'}</Text>
                     </TouchableOpacity>
-                    
-                    <Text style={styles.sectionTitle2}>Todays Trips (6 AM to 5:59 AM)</Text>
 
-                    {/* Search bar */}
+                    <View className="flex-row items-center mt-8 mb-2">
+                        <Text className="text-base font-semibold text-[#064e3b] mr-2">View Custom Trip Date:</Text>
+                        <Switch
+                            value={tripCustomDateEnabled}
+                            onValueChange={(val) => {
+                                setTripCustomDateEnabled(val);
+                                if (!val) {
+                                    setTripDate(null);
+                                    fetchAllData();
+                                } else {
+                                    setTripDatePickerVisible(true);
+                                }
+                            }}
+                        />
+                    </View>
+                    {tripCustomDateEnabled && (
+                        <TouchableOpacity onPress={() => setTripDatePickerVisible(true)} className="bg-gray-100 px-4 py-3 rounded-xl mb-4">
+                            <Text>{tripDate ? tripDate.toDateString() : 'Select Date'}</Text>
+                        </TouchableOpacity>
+                    )}
+                    <DateTimePickerModal
+                        isVisible={tripDatePickerVisible}
+                        mode="date"
+                        onConfirm={(date) => {
+                            setTripDate(date);
+                            fetchAllData(date);
+                            setTripDatePickerVisible(false);
+                        }}
+                        onCancel={() => setTripDatePickerVisible(false)}
+                    />
+                    <Text style={styles.sectionTitle2}>
+                        {tripCustomDateEnabled && tripDate
+                            ? `Trips on ${tripDate.toDateString()}`
+                            : 'Today’s Trips (6 AM to 5:59 AM)'}
+                    </Text>
                     <View style={styles.searchBarContainer}>
                         <TextInput
                             style={styles.searchBar}
@@ -292,17 +328,13 @@ export default function DieselForm() {
                             onChangeText={setTripSearch}
                         />
                     </View>
-                    {/* Table layout */}
                     <View style={styles.tableWrapper}>
-                        {/* Table Header */}
                         <View style={styles.tableRowHeader}>
                             <Text style={[styles.tableCell2, { flex: 2 }]}>Display Name</Text>
-                            <Text style={[styles.tableCell2, { flex: 1, textAlign: 'right' }]}>Total Trips Count </Text>
+                            <Text style={[styles.tableCell2, { flex: 1, textAlign: 'right' }]}>Total Trips</Text>
                         </View>
-
-                        {/* Table Body */}
                         {filteredTripEntries.length === 0 ? (
-                            <Text style={styles.noTripsText}>No trips found for today.</Text>
+                            <Text style={styles.noTripsText}>No trips found.</Text>
                         ) : (
                             filteredTripEntries.map(([email, count], idx) => {
                                 const user = users.find(u => u.email === email);
@@ -314,12 +346,8 @@ export default function DieselForm() {
                                             { backgroundColor: idx % 2 === 0 ? '#ffffff' : '#f6fef9' },
                                         ]}
                                     >
-                                        <Text style={[styles.tableCell, { flex: 2 }]}>
-                                            {user?.displayName || 'Unknown'}
-                                        </Text>
-                                        <Text style={[styles.tableCell, { flex: 1, textAlign: 'right' }]}>
-                                            {count}
-                                        </Text>
+                                        <Text style={[styles.tableCell, { flex: 2 }]}>{user?.displayName || 'Unknown'}</Text>
+                                        <Text style={[styles.tableCell, { flex: 1, textAlign: 'right' }]}>{count}</Text>
                                     </View>
                                 );
                             })

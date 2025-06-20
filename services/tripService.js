@@ -135,32 +135,26 @@ const tripService = {
         return { data: trip };
     },
 
-    async fetchTodayUserTripCounts() {
-        const now = new Date();
-
-        // Determine today's 6:00 AM
+    async fetchTodayUserTripCounts(date = null) {
+        const now = date ? new Date(date) : new Date();
         const todayStart = new Date(now);
         todayStart.setHours(6, 0, 0, 0);
-
-        // If current time is before 6:00 AM, shift to previous day 6:00 AM
-        if (now < todayStart) {
+        if (!date && now < todayStart) {
             todayStart.setDate(todayStart.getDate() - 1);
+            todayStart.setHours(6, 0, 0, 0);
         }
-
-        // End is 5:59:59 AM the next day
         const tomorrowEnd = new Date(todayStart);
         tomorrowEnd.setDate(tomorrowEnd.getDate() + 1);
         tomorrowEnd.setHours(5, 59, 59, 999);
 
         const response = await databaseService.listAllDocuments(dbId, colId, [
-            Query.greaterThanEqual("$createdAt", todayStart.toISOString()),
-            Query.lessThan("$createdAt", tomorrowEnd.toISOString()),
+            Query.greaterThanEqual('$createdAt', todayStart.toISOString()),
+            Query.lessThan('$createdAt', tomorrowEnd.toISOString()),
         ]);
 
         if (response.error) return { error: response.error };
 
         const userTripCounts = {};
-
         (response.data || []).forEach((trip) => {
             const userEmail = trip.userEmail;
             if (!userTripCounts[userEmail]) {

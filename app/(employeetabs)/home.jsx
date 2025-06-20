@@ -10,6 +10,7 @@ import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import authService from '../../services/authService';
 import dailyEntryFormService from '../../services/dailyEntryFormService';
 import tripService from '../../services/tripService';
+import employeeGlobalService from '../../services/employeeGlobalService';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../context/AuthContext';
 
@@ -32,6 +33,7 @@ export default function Home() {
     const [loading, setLoading] = useState(true);
     const [selectedDate, setSelectedDate] = useState(new Date());
     const [isDatePickerVisible, setDatePickerVisibility] = useState(false);
+    const [trackingEntry, setTrackingEntry] = useState(null);
 
     useEffect(() => {
         fetchProfile(new Date());
@@ -47,7 +49,6 @@ export default function Home() {
                 currentUser.email,
                 date.toISOString().split('T')[0]
             );
-
             if (!tripResult.error) {
                 setTripData(tripResult.data);
             }
@@ -58,8 +59,15 @@ export default function Home() {
                 const entryDate = new Date(entry.$createdAt);
                 return isSameDay(today, entryDate) && entry.userEmail === currentUser.email;
             });
-
             setDailyEntryDone(!!foundTodayEntry);
+
+            const trackData = await employeeGlobalService.listEntries([]);
+            const personalTrack = trackData.data.documents
+                .filter(entry => entry.userEmail.toLowerCase() === currentUser.email.toLowerCase())
+                .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+            if (personalTrack.length > 0) {
+                setTrackingEntry(personalTrack[0]);
+            }
         } catch (err) {
             console.error('Error loading profile:', err);
         } finally {
@@ -83,7 +91,6 @@ export default function Home() {
 
     return (
         <ScrollView className="flex-1 bg-gray-100 px-4 pt-6 pb-12">
-            {/* Centered Heading */}
             <View className="relative">
                 <View className="bg-[#064e3b] px-4 py-2 rounded-t-xl shadow-sm">
                     <Text className="text-white text-center font-bold text-lg tracking-wide">
@@ -92,32 +99,51 @@ export default function Home() {
                 </View>
             </View>
 
-            {/* Compact User Info Box */}
             <View className="bg-white rounded-b-xl px-4 py-4 mb-4 shadow-sm border border-gray-200 flex-row items-center">
                 <View className="w-12 h-12 rounded-full bg-[#064e3b] items-center justify-center mr-4">
                     <Text className="text-white font-bold text-lg">
                         {user?.name?.charAt(0).toUpperCase() || '?'}
                     </Text>
                 </View>
-
                 <View className="flex-1">
                     <Text className="text-xs text-gray-500">Username</Text>
                     <Text className="text-base font-semibold text-gray-900 mb-1">{user?.name}</Text>
-
                     <Text className="text-xs text-gray-500">Email</Text>
                     <Text className="text-sm text-gray-800">{user?.email}</Text>
                 </View>
             </View>
 
-            {/* Status + Date Row */}
-            <View className="flex-row space-x-4 mb-6 ">
+            {/* NEW: Tracking Entry Box */}
+            {trackingEntry && (
+                <View className="bg-white rounded-2xl p-5 shadow-sm border border-gray-200 mb-6">
+                    <Text className="text-lg font-semibold text-gray-800 mb-4">Todays Fuel Summary</Text>
+                    <View className="flex-row flex-wrap justify-between">
+                        {[
+                            ['Name', user.displayName || 'N/A'],
+                            ['Fuel Filled', `${trackingEntry.fuelFilled || 0} L`],
+                            ['Remaining Distance', `${trackingEntry.remainingDistance || 0} km`],
+                        ].map(([label, value], i) => (
+                            <View
+                                key={i}
+                                className="w-[48%] mb-3 bg-gray-50 px-3 py-2 rounded-md"
+                            >
+                                <Text className="text-xs text-gray-500">{label}</Text>
+                                <Text className={`text-sm font-medium ${label === 'Remaining Distance' && trackingEntry.remainingDistance < 30 ? 'text-red-600' : 'text-gray-800'}`}>
+                                    {value}
+                                </Text>
+                            </View>
+                        ))}
+                    </View>
+                </View>
+            )}
+
+            <View className="flex-row space-x-4 mb-6">
                 <View className="flex-1 bg-white rounded-xl p-5 shadow-sm border border-gray-200 mr-4">
                     <Text className="text-sm text-gray-500 mb-1">Daily Entry Status</Text>
                     <Text className={`text-base font-semibold ${dailyEntryDone ? 'text-green-700' : 'text-red-600'}`}>
                         {dailyEntryDone ? 'Completed' : 'Not Done'}
                     </Text>
                 </View>
-
                 <TouchableOpacity
                     onPress={() => setDatePickerVisibility(true)}
                     className="flex-1 bg-white rounded-xl p-5 shadow-sm border border-gray-200"
@@ -137,7 +163,6 @@ export default function Home() {
                 onCancel={() => setDatePickerVisibility(false)}
             />
 
-            {/* Trip Summary */}
             {tripData && (
                 <View className="bg-white rounded-2xl p-5 shadow-sm border border-gray-200 mb-6">
                     <Text className="text-lg font-semibold text-gray-800 mb-4">Trip Summary</Text>
@@ -156,7 +181,6 @@ export default function Home() {
                 </View>
             )}
 
-            {/* Trip Details Grid */}
             {tripData?.allTrips?.length > 0 && (
                 <>
                     <View className="relative">
@@ -198,11 +222,9 @@ export default function Home() {
                             </View>
                         ))}
                     </View>
-
                 </>
             )}
 
-            {/* Update Credentials Button */}
             <TouchableOpacity
                 onPress={() => router.push('/(employeetabs)/auth/modifyPassword')}
                 className="mt-10 bg-green-900 py-4 rounded-xl shadow-sm"
@@ -211,7 +233,7 @@ export default function Home() {
             </TouchableOpacity>
             <TouchableOpacity
                 onPress={() => router.push('/(employeetabs)/complaint/complaintscreen')}
-                className="mt-10 bg-green-900 py-4 rounded-xl shadow-sm"
+                className="mt-6 bg-green-900 py-4 rounded-xl shadow-sm"
             >
                 <Text className="text-white text-center font-bold text-base">Complaint List</Text>
             </TouchableOpacity>
