@@ -5,12 +5,12 @@ import {
     TouchableOpacity,
     ScrollView,
     ActivityIndicator,
+    TextInput,
 } from 'react-native';
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import authService from '../../services/authService';
 import dailyEntryFormService from '../../services/dailyEntryFormService';
 import tripService from '../../services/tripService';
-import employeeGlobalService from '../../services/employeeGlobalService';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../context/AuthContext';
 
@@ -30,17 +30,31 @@ export default function Home() {
 
     const [dailyEntryDone, setDailyEntryDone] = useState(false);
     const [tripData, setTripData] = useState(null);
+    const [monthlyTripCount, setMonthlyTripCount] = useState(0);
     const [loading, setLoading] = useState(true);
     const [selectedDate, setSelectedDate] = useState(new Date());
     const [isDatePickerVisible, setDatePickerVisibility] = useState(false);
-    const [trackingEntry, setTrackingEntry] = useState(null);
+
+    const [balanceKm, setBalanceKm] = useState(null);
+    const [currentMeterInput, setCurrentMeterInput] = useState('');
+    const [remainingAfterInput, setRemainingAfterInput] = useState(null);
 
     useEffect(() => {
         fetchProfile(new Date());
     }, []);
 
+    useEffect(() => {
+        if (balanceKm !== null && currentMeterInput !== '') {
+            const diff = parseFloat(balanceKm) - parseFloat(currentMeterInput);
+            setRemainingAfterInput(isNaN(diff) ? null : diff);
+        } else {
+            setRemainingAfterInput(null);
+        }
+    }, [currentMeterInput, balanceKm]);
+
     const fetchProfile = async (date) => {
         try {
+            setLoading(true);
             const currentUser = await authService.getCurrentUser();
             if (!currentUser?.email) return;
 
@@ -49,8 +63,11 @@ export default function Home() {
                 currentUser.email,
                 date.toISOString().split('T')[0]
             );
+
             if (!tripResult.error) {
                 setTripData(tripResult.data);
+                const balance = tripResult?.data?.allTrips?.[0]?.remainingKm;
+                setBalanceKm(balance ?? null);
             }
 
             const today = new Date();
@@ -61,12 +78,9 @@ export default function Home() {
             });
             setDailyEntryDone(!!foundTodayEntry);
 
-            const trackData = await employeeGlobalService.listEntries([]);
-            const personalTrack = trackData.data.documents
-                .filter(entry => entry.userEmail.toLowerCase() === currentUser.email.toLowerCase())
-                .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-            if (personalTrack.length > 0) {
-                setTrackingEntry(personalTrack[0]);
+            const monthlyCountRes = await tripService.fetchMonthlyTripCount(currentUser.email);
+            if (!monthlyCountRes.error) {
+                setMonthlyTripCount(monthlyCountRes.data);
             }
         } catch (err) {
             console.error('Error loading profile:', err);
@@ -113,29 +127,41 @@ export default function Home() {
                 </View>
             </View>
 
-            {/* NEW: Tracking Entry Box */}
-            {trackingEntry && (
-                <View className="bg-white rounded-2xl p-5 shadow-sm border border-gray-200 mb-6">
-                    <Text className="text-lg font-semibold text-gray-800 mb-4">Todays Fuel Summary</Text>
-                    <View className="flex-row flex-wrap justify-between">
-                        {[
-                            ['Name', user.displayName || 'N/A'],
-                            ['Fuel Filled', `${trackingEntry.fuelFilled || 0} L`],
-                            ['Remaining Distance', `${trackingEntry.remainingDistance || 0} km`],
-                        ].map(([label, value], i) => (
-                            <View
-                                key={i}
-                                className="w-[48%] mb-3 bg-gray-50 px-3 py-2 rounded-md"
-                            >
-                                <Text className="text-xs text-gray-500">{label}</Text>
-                                <Text className={`text-sm font-medium ${label === 'Remaining Distance' && trackingEntry.remainingDistance < 30 ? 'text-red-600' : 'text-gray-800'}`}>
-                                    {value}
-                                </Text>
-                            </View>
-                        ))}
+            {/* ✅ Monthly Trip Summary & Balance KM */}
+            <View className="bg-white rounded-2xl p-5 shadow-sm border border-gray-200 mb-6">
+                <Text className="text-lg font-semibold text-gray-800 mb-4">Monthly Trip Summary</Text>
+                <View className="flex-row flex-wrap justify-between">
+                    <View className="w-[48%] bg-gray-50 px-3 py-4 rounded-md items-center justify-center mb-4">
+                        <Text className="text-xs text-gray-500 mb-1">Total Trips This Month</Text>
+                        <Text className="text-2xl font-bold text-[#064e3b]">{monthlyTripCount}</Text>
+                    </View>
+                    <View className="w-[48%] bg-gray-50 px-3 py-4 rounded-md items-center justify-center mb-4">
+                        <Text className="text-xs text-gray-500 mb-1">Todays Remaining KM</Text>
+                        <Text className="text-xl font-bold text-[#064e3b]">
+                            {balanceKm !== null ? `${balanceKm} km` : 'N/A'}
+                        </Text>
                     </View>
                 </View>
-            )}
+
+                {/* ✅ Current Meter Check Input */}
+                <View className="mt-2">
+                    <Text className="text-xs text-gray-600 mb-1">
+                        Check your current meter vs todays balance
+                    </Text>
+                    <TextInput
+                        placeholder="Enter current meter reading"
+                        keyboardType="numeric"
+                        value={currentMeterInput}
+                        onChangeText={setCurrentMeterInput}
+                        className="border border-gray-300 rounded-md px-3 py-2 mb-2 text-gray-800 bg-white"
+                    />
+                    {currentMeterInput !== '' && remainingAfterInput !== null && (
+                        <Text className={`text-sm font-semibold ${remainingAfterInput < 0 ? 'text-red-600' : 'text-green-700'}`}>
+                            Remaining after input: {remainingAfterInput.toFixed(2)} km
+                        </Text>
+                    )}
+                </View>
+            </View>
 
             <View className="flex-row space-x-4 mb-6">
                 <View className="flex-1 bg-white rounded-xl p-5 shadow-sm border border-gray-200 mr-4">
@@ -191,7 +217,7 @@ export default function Home() {
                         </View>
                     </View>
                     <View className="space-y-4">
-                        {tripData.allTrips.map((trip, index) => (
+                        {tripData.allTrips.map((trip) => (
                             <View
                                 key={trip.$id}
                                 className={`bg-white border ${trip.edited ? 'border-green-500' : 'border-gray-200'} shadow-sm px-4 py-4`}

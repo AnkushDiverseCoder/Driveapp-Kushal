@@ -13,7 +13,8 @@ const config = {
         advanceEntry:process.env.EXPO_PUBLIC_APPWRITE_COL_ADVANCE_ENTRY,
         clientList:process.env.EXPO_PUBLIC_APPWRITE_COL_CLIENT_ENTRY,
         employeeComplaint:process.env.EXPO_PUBLIC_APPWRITE_COL_USER_COMPLAINT,
-        employeeGlobalData:process.env.EXPO_PUBLIC_APPWRITE_COL_EMPLOYEE_GLOBAL_DATA
+        employeeGlobalData:process.env.EXPO_PUBLIC_APPWRITE_COL_EMPLOYEE_GLOBAL_DATA,
+        transaction:process.env.EXPO_PUBLIC_APPWRITE_COL_TRANSACTION
     }
 };
 

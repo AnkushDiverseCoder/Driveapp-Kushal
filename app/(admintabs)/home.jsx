@@ -4,7 +4,7 @@ import * as Sharing from 'expo-sharing';
 import { useEffect, useState } from 'react';
 import {
     View, Text, ScrollView, TextInput, TouchableOpacity, ActivityIndicator,
-    Alert, Modal, Switch
+    Alert, Modal
 } from 'react-native';
 import * as XLSX from 'xlsx';
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
@@ -30,17 +30,6 @@ export default function AdminDashboard() {
     const [allDailyEntries, setAllDailyEntries] = useState([]);
     const [allTrips, setAllTrips] = useState([]);
     const [currentUser, setCurrentUser] = useState(null);
-    const [tripCounts, setTripCounts] = useState({});
-    const [tripSearch, setTripSearch] = useState('');
-    const [tripDate, setTripDate] = useState(null);
-    const [tripCustomDateEnabled, setTripCustomDateEnabled] = useState(false);
-    const [tripDatePickerVisible, setTripDatePickerVisible] = useState(false);
-
-    const filteredTripEntries = Object.entries(tripCounts).filter(([email]) => {
-        const user = users.find(u => u.email === email);
-        return user?.displayName?.toLowerCase().includes(tripSearch.toLowerCase());
-    });
-
     const router = useRouter();
 
     useEffect(() => {
@@ -58,24 +47,13 @@ export default function AdminDashboard() {
 
             const d = await dailyEntryFormService.listDailyEntry();
             const t = await tripService.listTrips();
-            const counts = await tripService.fetchTodayUserTripCounts();
 
             setAllDailyEntries(d.data.documents || []);
             setAllTrips(t.data.documents || []);
-            setTripCounts(counts.data || {});
         } catch (e) {
             Alert.alert('Error', e.message || 'Failed to fetch data');
         } finally {
             setLoading(false);
-        }
-    };
-
-    const fetchCustomTripCounts = async (date) => {
-        try {
-            const result = await tripService.fetchTodayUserTripCounts(date);
-            setTripCounts(result.data || {});
-        } catch (e) {
-            Alert.alert('Error', e.message || 'Failed to fetch trips');
         }
     };
 
@@ -313,77 +291,15 @@ export default function AdminDashboard() {
                 <TouchableOpacity onPress={() => router.replace('/(admintabs)/component/complaintscreen')} style={styles.btn}>
                     {exportingTrip ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnText}>Client Complaint</Text>}
                 </TouchableOpacity>
-            </View>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
-                <Text style={{ fontWeight: '600', marginRight: 8 }}>View Custom Trip Date:</Text>
-                <Switch
-                    value={tripCustomDateEnabled}
-                    onValueChange={(val) => {
-                        setTripCustomDateEnabled(val);
-                        if (!val) {
-                            setTripDate(null);
-                            fetchCustomTripCounts();
-                        } else {
-                            setTripDatePickerVisible(true);
-                        }
-                    }}
-                />
-            </View>
-
-            {tripCustomDateEnabled && (
-                <TouchableOpacity
-                    style={{ backgroundColor: '#fff', padding: 12, borderRadius: 8, borderWidth: 1, borderColor: '#ccc', marginBottom: 12 }}
-                    onPress={() => setTripDatePickerVisible(true)}
-                >
-                    <Text>{tripDate ? tripDate.toDateString() : 'Select Trip Date'}</Text>
+                <TouchableOpacity onPress={() => router.replace('/(admintabs)/component/trip/tripcountscreen')} style={styles.btn}>
+                    {exportingTrip ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnText}>TripCount</Text>}
                 </TouchableOpacity>
-            )}
-
-            <DateTimePickerModal
-                isVisible={tripDatePickerVisible}
-                mode="date"
-                onConfirm={(date) => {
-                    setTripDate(date);
-                    fetchCustomTripCounts(date);
-                    setTripDatePickerVisible(false);
-                }}
-                onCancel={() => setTripDatePickerVisible(false)}
-            />
-
-            <Text style={{ fontSize: 20, fontWeight: '600', color: '#064e3b', marginTop: 20, marginBottom: 14 }}>
-                {tripCustomDateEnabled && tripDate ? `Trips on ${tripDate.toDateString()}` : 'Today’s Trips (6 AM to 5:59 AM)'}
-            </Text>
-
-            <TextInput
-                style={{ backgroundColor: '#fff', borderColor: '#064e3b', borderWidth: 1.2, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 14, fontSize: 15, color: '#111', marginBottom: 12 }}
-                placeholder="Search by Display Name..."
-                placeholderTextColor="#888"
-                value={tripSearch}
-                onChangeText={setTripSearch}
-            />
-
-            <View style={{ borderWidth: 1.5, borderColor: '#064e3b', borderRadius: 12, overflow: 'hidden', backgroundColor: '#fff' }}>
-                <View style={{ flexDirection: 'row', backgroundColor: '#064e3b', paddingVertical: 10, paddingHorizontal: 10 }}>
-                    <Text style={{ fontSize: 14, color: '#fff', flex: 2 }}>Display Name</Text>
-                    <Text style={{ fontSize: 14, color: '#fff', flex: 1, textAlign: 'right' }}>Total Trips</Text>
-                </View>
-
-                {filteredTripEntries.length === 0 ? (
-                    <Text style={{ padding: 14, textAlign: 'center', color: '#6b7280', fontStyle: 'italic' }}>No trips found.</Text>
-                ) : (
-                    filteredTripEntries.map(([email, count], idx) => {
-                        const user = users.find(u => u.email === email);
-                        return (
-                            <View
-                                key={email}
-                                style={{ flexDirection: 'row', paddingVertical: 12, paddingHorizontal: 10, borderBottomWidth: 1, borderColor: '#e0e0e0', backgroundColor: idx % 2 === 0 ? '#ffffff' : '#f6fef9' }}
-                            >
-                                <Text style={{ fontSize: 14, color: '#064e3b', flex: 2 }}>{user?.displayName || 'Unknown'}</Text>
-                                <Text style={{ fontSize: 14, color: '#064e3b', flex: 1, textAlign: 'right' }}>{count}</Text>
-                            </View>
-                        );
-                    })
-                )}
+                <TouchableOpacity onPress={() => router.replace('/(admintabs)/component/diselForm/adminDiselEntry')} style={styles.btn}>
+                    {exportingTrip ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnText}>Diesel Count</Text>}
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => router.replace('/(admintabs)/component/transaction/CreateTransactionScreen')} style={styles.btn}>
+                    {exportingTrip ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnText}>Create Transaction</Text>}
+                </TouchableOpacity>
             </View>
         </ScrollView>
     );

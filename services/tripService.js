@@ -135,35 +135,40 @@ const tripService = {
         return { data: trip };
     },
 
-    async fetchTodayUserTripCounts(date = null) {
-        const now = date ? new Date(date) : new Date();
-        const todayStart = new Date(now);
-        todayStart.setHours(6, 0, 0, 0);
-        if (!date && now < todayStart) {
-            todayStart.setDate(todayStart.getDate() - 1);
-            todayStart.setHours(6, 0, 0, 0);
+    async fetchUserTripCounts(mode = "today", dateParam = null) {
+        let start, end;
+
+        if (mode === "month") {
+            const date = dateParam ? new Date(dateParam) : new Date();
+            start = new Date(date.getFullYear(), date.getMonth(), 1);
+            end = new Date(start);
+            end.setMonth(end.getMonth() + 1);
+        } else {
+            const now = dateParam ? new Date(dateParam) : new Date();
+            start = new Date(now);
+            start.setHours(6, 58, 0, 0);
+            if (now < start) start.setDate(start.getDate() - 1);
+            end = new Date(start);
+            end.setDate(start.getDate() + 1);
+            end.setHours(6, 57, 59, 999);
         }
-        const tomorrowEnd = new Date(todayStart);
-        tomorrowEnd.setDate(tomorrowEnd.getDate() + 1);
-        tomorrowEnd.setHours(5, 59, 59, 999);
 
         const response = await databaseService.listAllDocuments(dbId, colId, [
-            Query.greaterThanEqual('$createdAt', todayStart.toISOString()),
-            Query.lessThan('$createdAt', tomorrowEnd.toISOString()),
+            Query.greaterThanEqual('$createdAt', start.toISOString()),
+            Query.lessThan('$createdAt', end.toISOString()),
         ]);
 
         if (response.error) return { error: response.error };
 
         const userTripCounts = {};
         (response.data || []).forEach((trip) => {
-            const userEmail = trip.userEmail;
-            if (!userTripCounts[userEmail]) {
-                userTripCounts[userEmail] = 0;
-            }
-            userTripCounts[userEmail]++;
+            const email = trip.userEmail?.toLowerCase?.();
+            if (!email) return;
+            userTripCounts[email] = (userTripCounts[email] || 0) + 1;
         });
 
-        return { data: userTripCounts };
+        const sorted = Object.entries(userTripCounts).sort((a, b) => b[1] - a[1]);
+        return { data: Object.fromEntries(sorted) };
     },
 
 
@@ -214,18 +219,22 @@ const tripService = {
     async createTrip(data) {
         const latestTrip = await this.fetchLatestUserTrip(data.userEmail);
 
-        // Prevent new trip if last one is incomplete
-        if (latestTrip.data) {
+        if (latestTrip?.data) {
             const { startKm, endKm } = latestTrip.data;
-            if (!(startKm > 0 && endKm > 0)) {
+
+            // Check if the previous trip is incomplete
+            const isStartValid = startKm !== null && startKm !== undefined && startKm !== '' && !isNaN(startKm);
+            const isEndValid = endKm !== null && endKm !== undefined && endKm !== '' && !isNaN(endKm);
+
+            if (!isStartValid || !isEndValid || startKm <= 0 || endKm <= 0) {
                 return {
                     data: null,
-                    error: "Cannot create new trip. Last trip is incomplete (missing startKm or endKm).",
+                    error: "Cannot create new trip. Previous trip is incomplete (missing or invalid KM readings).",
                 };
             }
         }
 
-        // 🔍 Check if tripId already exists
+        // Trip ID check
         const existingTrip = await this.findTripByTripId(data.tripId);
         if (existingTrip) {
             return {
@@ -234,8 +243,7 @@ const tripService = {
             };
         }
 
-        const newDocId = ID.unique(); // Document ID is separate from tripId
-
+        const newDocId = ID.unique();
         try {
             const response = await databaseService.createDocument(dbId, colId, newDocId, data);
             return { data: response, error: null };
@@ -267,6 +275,36 @@ const tripService = {
         if (response.error) return { error: response.error };
         return { data: response };
     },
+
+    async fetchMonthlyTripCount(userEmail) {
+        const now = new Date();
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+
+        const response = await databaseService.listAllDocuments(dbId, colId, [
+            Query.equal("userEmail", userEmail),
+            Query.greaterThanEqual("$createdAt", startOfMonth.toISOString()),
+            Query.lessThanEqual("$createdAt", endOfMonth.toISOString()),
+        ]);
+
+        if (response.error) return { error: response.error };
+
+        return { data: response.data.length };
+    },
+
+    async deleteTrip(tripId) {
+        try {
+            const response = await databaseService.deleteDocument(dbId, colId, tripId);
+            if (response.error) return { error: response.error };
+            return { data: response };
+        } catch (err) {
+            return {
+                data: null,
+                error: err?.message || "Unexpected error while deleting trip.",
+            };
+        }
+    }
+
 };
 
 export default tripService;

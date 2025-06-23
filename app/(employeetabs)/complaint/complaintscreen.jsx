@@ -75,7 +75,7 @@ const EmployeeComplaintScreen = () => {
                 <View style={styles.grid}>
                     {complaints.map((item) => (
                         <View key={item.$id} style={styles.card}>
-                            <Text style={styles.cardTitle}>Complaint #{item.$id}</Text>
+                            <Text style={styles.cardTitle}>Recorded By #{item.RPDisplayName}</Text>
                             <View style={styles.cardContent}>
                                 <Text style={styles.label}>Date</Text>
                                 <Text style={styles.value}>
@@ -154,6 +154,13 @@ const styles = StyleSheet.create({
         fontSize: 15,
         fontWeight: '500',
         color: '#333',
+    },
+    recordedByHeading: {
+        fontSize: 14,
+        fontWeight: '700',
+        color: accentColor,
+        marginTop: 12,
+        marginBottom: 2,
     },
     errorText: {
         fontSize: 16,

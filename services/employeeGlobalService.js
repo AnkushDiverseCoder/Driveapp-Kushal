@@ -7,7 +7,7 @@ const EMPLOYEE_GLOBAL_COLLECTION_ID = process.env.EXPO_PUBLIC_APPWRITE_COL_EMPLO
 const employeeGlobalService = {
     async listEntries(queries = []) {
         try {
-            const res = await databaseService.listDocuments(DATABASE_ID, EMPLOYEE_GLOBAL_COLLECTION_ID, queries);
+            const res = await databaseService.listAllDocuments(DATABASE_ID, EMPLOYEE_GLOBAL_COLLECTION_ID, queries);
             return { success: true, data: res };
         } catch (error) {
             return { success: false, error: error.message || 'Failed to fetch entries' };
@@ -34,7 +34,9 @@ const employeeGlobalService = {
 
     async createOrUpdateEntry(form, selectedEmployee, mileage) {
         try {
-            const totalDistance = parseFloat(form.fuelQuantity) * mileage;
+            const fuelQuantity = parseFloat(form.fuelQuantity);
+            const currentMeter = parseFloat(form.meterReading);
+            const totalDistance = fuelQuantity * mileage;
 
             const prevRes = await this.listEntries([
                 Query.equal('userEmail', [selectedEmployee.email]),
@@ -44,33 +46,137 @@ const employeeGlobalService = {
             ]);
 
             const prev = prevRes?.data?.documents?.[0];
+            const isFirstEntry = !prev;
             const previousMeterReading = prev?.meterReading || 0;
-            const totalDistanceCovered = parseFloat(form.meterReading) - previousMeterReading;
-            const remainingDistance = prev?.remainingDistance
-                ? prev.remainingDistance - totalDistanceCovered
-                : totalDistance;
+            const previousRemaining = prev?.remainingDistance || 0;
+
+            const runningKm = isFirstEntry ? 0 : currentMeter - previousMeterReading;
+
+            // ✅ Fixed logic for remainingDistance
+            const remainingDistance = isFirstEntry
+                ? totalDistance
+                : previousRemaining - runningKm + totalDistance;
 
             const payload = {
-                meterReading: parseFloat(form.meterReading),
-                totalDistance: totalDistanceCovered,
-                remainingDistance,
+                meterReading: currentMeter,
                 previousMeterReading,
-                fuelFilled: parseFloat(form.fuelQuantity),
+                totalDistance: runningKm,
+                remainingDistance,
+                fuelFilled: fuelQuantity,
+                mileage: parseInt(mileage),
                 notes: '',
                 userEmail: selectedEmployee.email,
                 vehicleNumber: form.vehicleNumber,
                 createdAt: new Date().toISOString(),
             };
 
-            if (!prev || new Date(prev.createdAt).toDateString() !== new Date().toDateString()) {
-                return await this.createEntry(payload);
-            } else {
-                return await this.updateEntry(prev.$id, payload);
-            }
+            return await this.createEntry(payload);
+
         } catch (error) {
-            return { success: false, error: error.message || 'Failed to create/update global entry' };
+            return {
+                success: false,
+                error: error.message || 'Failed to create global entry',
+            };
         }
     },
+
+    async getMonthlyMileageSummary({ userEmail, vehicleNumber }) {
+        try {
+            const now = new Date();
+            const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+            const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString();
+
+            const queries = [
+                Query.greaterThanEqual('createdAt', startOfMonth),
+                Query.lessThanEqual('createdAt', endOfMonth),
+            ];
+
+            if (userEmail) queries.push(Query.equal('userEmail', [userEmail]));
+            if (vehicleNumber) queries.push(Query.equal('vehicleNumber', [vehicleNumber]));
+
+            const res = await this.listEntries(queries);
+
+            const entries = res?.data?.documents || [];
+
+            if (entries.length === 0) {
+                return { success: true, totalDistance: 0, averageMileage: 0, entryCount: 0 };
+            }
+
+            const totalDistance = entries.reduce((sum, entry) => sum + (entry.totalDistance || 0), 0);
+            const totalMileage = entries.reduce((sum, entry) => sum + (entry.mileage || 0), 0);
+            const averageMileage = totalMileage / entries.length;
+
+            return {
+                success: true,
+                totalDistance,
+                averageMileage: Math.round(averageMileage),
+                entryCount: entries.length,
+            };
+
+        } catch (error) {
+            return {
+                success: false,
+                error: error.message || 'Failed to fetch monthly mileage summary',
+            };
+        }
+    },
+
+    async getVehicleWiseFuelEfficiency({ from, to } = {}) {
+        try {
+            const queries = [];
+
+            // Apply optional date range
+            if (from) queries.push(Query.greaterThanEqual('createdAt', new Date(from).toISOString()));
+            if (to) queries.push(Query.lessThanEqual('createdAt', new Date(to).toISOString()));
+
+            const res = await this.listEntries(queries);
+            const entries = res?.data?.documents || [];
+
+            if (entries.length === 0) {
+                return { success: true, data: [] };
+            }
+
+            // Group by vehicle
+            const vehicleStats = {};
+
+            for (const entry of entries) {
+                const vehicle = entry.vehicleNumber || 'Unknown';
+                if (!vehicleStats[vehicle]) {
+                    vehicleStats[vehicle] = {
+                        totalDistance: 0,
+                        totalFuel: 0,
+                        entries: 0,
+                    };
+                }
+
+                vehicleStats[vehicle].totalDistance += entry.totalDistance || 0;
+                vehicleStats[vehicle].totalFuel += entry.fuelFilled || 0;
+                vehicleStats[vehicle].entries += 1;
+            }
+
+            const result = Object.entries(vehicleStats).map(([vehicleNumber, stats]) => ({
+                vehicleNumber,
+                totalDistance: stats.totalDistance,
+                totalFuel: stats.totalFuel,
+                averageEfficiency:
+                    stats.totalFuel > 0
+                        ? parseFloat((stats.totalDistance / stats.totalFuel).toFixed(2))
+                        : 0,
+                entryCount: stats.entries,
+            }));
+
+            return { success: true, data: result };
+
+        } catch (error) {
+            return {
+                success: false,
+                error: error.message || 'Failed to generate vehicle-wise efficiency report',
+            };
+        }
+    }
+
+
+
 };
 
 export default employeeGlobalService;

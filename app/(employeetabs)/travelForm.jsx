@@ -120,6 +120,18 @@ export default function TravelForm() {
 
     const handleSubmit = async () => {
         if (!validate()) return;
+
+        // Check for Start KM limit
+        const parsedStartKm = parseFloat(form.startKm);
+        if (isNaN(parsedStartKm) || parsedStartKm < 100) {
+            setAlert({
+                visible: true,
+                title: 'Error',
+                message: 'Start KM must be a number and at least 100.',
+            });
+            return;
+        }
+
         setLoading(true);
 
         const distanceTravelled = form.endKm && form.startKm
@@ -128,7 +140,7 @@ export default function TravelForm() {
 
         const payload = {
             ...form,
-            startKm: form.startKm ? parseFloat(form.startKm) : 0,
+            startKm: parsedStartKm,
             endKm: form.endKm ? parseFloat(form.endKm) : 0,
             distanceTravelled,
             userEmail: user.email,
@@ -137,30 +149,32 @@ export default function TravelForm() {
 
         try {
             const { data, error } = await tripService.createTrip(payload);
+            console.log(data)
             setLoading(false);
+
             if (error) {
-                setErrors(prev => ({ ...prev, tripId: error.includes('Trip ID') ? error : null }));
                 setAlert({
                     visible: true,
                     title: 'Error',
                     message: error,
                 });
-            } else {
-                setAlert({
-                    visible: true,
-                    title: 'Success',
-                    message: 'Trip submitted successfully!',
-                });
-                setForm({
-                    siteName: '',
-                    tripMethod: '',
-                    tripId: '',
-                    startKm: '',
-                    endKm: '',
-                    escort: false,
-                    vehicleNumber: '',
-                });
+                return;
             }
+
+            setAlert({
+                visible: true,
+                title: 'Success',
+                message: 'Trip submitted successfully!',
+            });
+            setForm({
+                siteName: '',
+                tripMethod: '',
+                tripId: '',
+                startKm: '',
+                endKm: '',
+                escort: false,
+                vehicleNumber: '',
+            });
         } catch (e) {
             setLoading(false);
             setAlert({
@@ -326,16 +340,6 @@ export default function TravelForm() {
                             className="border border-gray-400 rounded-lg px-3 py-2 mt-2 text-[#064e3b]"
                         />
                         {errors.startKm && <Text className="text-red-500 mt-1">{errors.startKm}</Text>}
-
-                        <Text className="text-[#064e3b] font-semibold text-base mt-4">End KM</Text>
-                        <TextInput
-                            value={form.endKm}
-                            onChangeText={(text) => handleChange('endKm', text)}
-                            placeholder="Enter end KM"
-                            keyboardType="numeric"
-                            className="border border-gray-400 rounded-lg px-3 py-2 mt-2 text-[#064e3b]"
-                        />
-                        {errors.endKm && <Text className="text-red-500 mt-1">{errors.endKm}</Text>}
 
                         {/* SUBMIT */}
                         <TouchableOpacity

@@ -17,13 +17,10 @@ import userComplaintService from "../../../services/userComplaintService";
 import authService from "../../../services/authService";
 import * as FileSystem from "expo-file-system";
 import * as Sharing from "expo-sharing";
-import * as Print from "expo-print";
 
-// Utility to find user by field
 const getUserByField = (users, key, value) =>
     users.find((u) => u[key] === value);
 
-// Sync displayName and email
 const updateFormWithSync = ({ users, setter, field, value }) => {
     setter((prevForm) => {
         const updated = { ...prevForm, [field]: value };
@@ -38,7 +35,14 @@ const updateFormWithSync = ({ users, setter, field, value }) => {
 
 export default function UserComplaintScreen() {
     const [users, setUsers] = useState([]);
-    const [form, setForm] = useState({ userEmail: "", displayName: "", date: "", reason: "" });
+    const [form, setForm] = useState({
+        userEmail: "",
+        displayName: "",
+        date: "",
+        reason: "",
+        RPDisplayName: "",
+        RPEmail: "",
+    });
     const [inputErrors, setInputErrors] = useState({});
     const [showDatePicker, setShowDatePicker] = useState(false);
     const [showNameModal, setShowNameModal] = useState(false);
@@ -49,7 +53,6 @@ export default function UserComplaintScreen() {
     const [loading, setLoading] = useState(false);
     const [hasMore, setHasMore] = useState(true);
 
-    // Validation
     const isValidISODate = (date) => !isNaN(Date.parse(date));
     const validate = (data) => {
         const errs = {};
@@ -69,7 +72,7 @@ export default function UserComplaintScreen() {
         }
     };
 
-    const fetchComplaints = async () => {
+    const fetchComplaints = React.useCallback(async () => {
         setLoading(true);
         const res = await userComplaintService.listUserComplaints(page);
         if (res.success) {
@@ -80,15 +83,29 @@ export default function UserComplaintScreen() {
             Alert.alert("Error", res.error || "Failed to fetch complaints");
         }
         setLoading(false);
-    };
+    }, [page]);
 
     useEffect(() => {
         fetchUsers();
+
+        const fetchCurrentUser = async () => {
+            const user = await authService.getCurrentUser();
+            console.log(user.displayName)
+            if (user) {
+                setForm((prev) => ({
+                    ...prev,
+                    RPDisplayName: user.displayName || "",
+                    RPEmail: user.email || "",
+                }));
+            }
+        };
+
+        fetchCurrentUser();
     }, []);
 
     useEffect(() => {
         fetchComplaints();
-    }, [page]);
+    }, [page, fetchComplaints]);
 
     const handleDateConfirm = (date) => {
         setForm((prev) => ({ ...prev, date: date.toISOString() }));
@@ -101,14 +118,16 @@ export default function UserComplaintScreen() {
             setInputErrors(errs);
             return;
         }
-
+        
         const payload = {
             userEmail: form.userEmail.trim(),
             displayName: form.displayName.trim(),
             reason: form.reason.trim(),
             date: form.date,
+            RPDisplayName: form.RPDisplayName.trim(),
+            RPEmail: form.RPEmail.trim(),
         };
-
+        console.log(payload)
         setLoading(true);
         const res = editingId
             ? await userComplaintService.updateUserComplaint(editingId, payload)
@@ -117,7 +136,14 @@ export default function UserComplaintScreen() {
 
         if (res.success) {
             Alert.alert("Success", editingId ? "Complaint updated!" : "Complaint submitted!");
-            setForm({ userEmail: "", displayName: "", date: "", reason: "" });
+            setForm({
+                userEmail: "",
+                displayName: "",
+                date: "",
+                reason: "",
+                RPDisplayName: form.RPDisplayName,
+                RPEmail: form.RPEmail,
+            });
             setEditingId(null);
             setComplaints([]);
             setPage(1);
@@ -133,6 +159,8 @@ export default function UserComplaintScreen() {
             displayName: item.displayName,
             date: item.date,
             reason: item.reason,
+            RPDisplayName: item.RPDisplayName || "",
+            RPEmail: item.RPEmail || "",
         });
         setEditingId(item.$id);
     };
@@ -141,8 +169,15 @@ export default function UserComplaintScreen() {
         if (complaints.length === 0) return Alert.alert("No data to export");
 
         const csvContent = [
-            ["Display Name", "Email", "Date", "Reason"],
-            ...complaints.map((c) => [c.displayName, c.userEmail, c.date, c.reason])
+            ["Display Name", "Email", "Date", "Reason", "RPDisplayName", "RPEmail"],
+            ...complaints.map((c) => [
+                c.displayName,
+                c.userEmail,
+                c.date,
+                c.reason,
+                c.RPDisplayName || "",
+                c.RPEmail || "",
+            ]),
         ]
             .map((row) => row.map((cell) => `"${cell?.replace(/"/g, '""')}"`).join(","))
             .join("\n");
@@ -157,39 +192,6 @@ export default function UserComplaintScreen() {
             dialogTitle: "Export Complaints CSV",
             UTI: "public.comma-separated-values-text",
         });
-    };
-
-    const exportToPDF = async () => {
-        if (complaints.length === 0) return Alert.alert("No data to export");
-
-        const htmlContent = `
-        <html>
-        <head>
-            <style>
-                table { width: 100%; border-collapse: collapse; }
-                th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
-                th { background-color: #f3f4f6; }
-            </style>
-        </head>
-        <body>
-            <h2>User Complaints Report</h2>
-            <table>
-                <tr><th>Display Name</th><th>Email</th><th>Date</th><th>Reason</th></tr>
-                ${complaints.map((c) => `
-                    <tr>
-                        <td>${c.displayName}</td>
-                        <td>${c.userEmail}</td>
-                        <td>${new Date(c.date).toLocaleString()}</td>
-                        <td>${c.reason}</td>
-                    </tr>
-                `).join("")}
-            </table>
-        </body>
-        </html>
-        `;
-
-        const { uri } = await Print.printToFileAsync({ html: htmlContent });
-        await Sharing.shareAsync(uri, { mimeType: "application/pdf", dialogTitle: "Export Complaints PDF" });
     };
 
     const handleDelete = (id) => {
@@ -230,7 +232,6 @@ export default function UserComplaintScreen() {
                     placeholder="Auto-filled email"
                     style={[styles.input, { backgroundColor: "#e5e7eb" }]}
                 />
-                {inputErrors.userEmail && <Text style={styles.error}>{inputErrors.userEmail}</Text>}
 
                 <TouchableOpacity onPress={() => setShowDatePicker(true)} style={styles.picker}>
                     <Text>{form.date ? new Date(form.date).toLocaleString() : "Select Date & Time"}</Text>
@@ -250,14 +251,10 @@ export default function UserComplaintScreen() {
                 <TouchableOpacity onPress={handleSubmit} style={styles.submitBtn} disabled={loading}>
                     {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitText}>{editingId ? "Update" : "Submit"} Complaint</Text>}
                 </TouchableOpacity>
+
                 <TouchableOpacity onPress={exportToCSV} style={styles.submitBtn}>
                     <Text style={styles.submitText}>Export CSV</Text>
                 </TouchableOpacity>
-
-                <TouchableOpacity onPress={exportToPDF} style={[styles.submitBtn, { backgroundColor: '#334155' }]}>
-                    <Text style={styles.submitText}>Export PDF</Text>
-                </TouchableOpacity>
-
 
                 <Text style={{ fontSize: 16, marginVertical: 10 }}>All Complaints</Text>
 
@@ -267,6 +264,7 @@ export default function UserComplaintScreen() {
                         <Text>{item.userEmail}</Text>
                         <Text>{new Date(item.date).toLocaleString()}</Text>
                         <Text>{item.reason}</Text>
+                        <Text>Recorded By: {item.RPDisplayName || "-"} ({item.RPEmail || "-"})</Text>
                         <View style={{ flexDirection: "row", marginTop: 8, gap: 10 }}>
                             <TouchableOpacity onPress={() => handleEdit(item)} style={styles.editBtn}>
                                 <Text>Edit</Text>
@@ -298,7 +296,8 @@ export default function UserComplaintScreen() {
                         />
                         <FlatList
                             data={filteredUsers}
-                            keyExtractor={(item) => item.email}
+                            keyExtractor={(item, index) => `${item.email}_${index}`}
+
                             renderItem={({ item }) => (
                                 <TouchableOpacity
                                     onPress={() => {
