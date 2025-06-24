@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
-    View, Text, FlatList, TouchableOpacity, Alert, Modal,
+    View, Text, FlatList, TouchableOpacity, Alert,
     TextInput, ScrollView, Platform
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -11,6 +11,7 @@ import * as Sharing from 'expo-sharing';
 import employeeGlobalService from '../../../../services/employeeGlobalService';
 import authService from '../../../../services/authService';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Query } from 'react-native-appwrite';
 
 export default function AdminDieselTrackingScreen() {
     const [activeTab, setActiveTab] = useState('daily');
@@ -23,37 +24,48 @@ export default function AdminDieselTrackingScreen() {
     const [showStartPicker, setShowStartPicker] = useState(false);
     const [showEndPicker, setShowEndPicker] = useState(false);
 
-    useEffect(() => {
-        fetchUsersAndData();
-    }, [activeTab]);
+const fetchUsersAndData = React.useCallback(async () => {
+    try {
+        const res = await authService.fetchAllUsers();
+        const unique = Array.from(new Map(res.data.map(u => [u.email, u])).values());
+        setUsers(unique);
 
-    const fetchUsersAndData = async () => {
-        try {
-            const res = await authService.fetchAllUsers();
-            const unique = Array.from(new Map(res.data.map(u => [u.email, u])).values());
-            setUsers(unique);
+        if (activeTab === 'daily') {
+            // Get today's date range
+            const now = new Date();
+            const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+            const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).toISOString();
 
-            if (activeTab === 'daily') {
-                const res = await employeeGlobalService.listEntries([]);
-                const latestEntries = {};
+            // Fetch today's entries
+            const res = await employeeGlobalService.listEntries([
+                Query.greaterThanEqual('createdAt', startOfDay),
+                Query.lessThanEqual('createdAt', endOfDay),
+            ]);
 
-                for (const entry of res.data.data) {
-                    const email = entry.userEmail.toLowerCase();
-                    if (!latestEntries[email] || new Date(entry.createdAt) > new Date(latestEntries[email].createdAt)) {
-                        latestEntries[email] = entry;
-                    }
+            const latestEntries = {};
+
+            for (const entry of res.data.data) {
+                const email = entry.userEmail.toLowerCase();
+                if (!latestEntries[email] || new Date(entry.createdAt) > new Date(latestEntries[email].createdAt)) {
+                    latestEntries[email] = entry;
                 }
-
-                setAllEntries(Object.values(latestEntries));
-            } else {
-                fetchMonthlyEntries();
             }
-        } catch (err) {
-            Alert.alert('Error', 'Failed to load data');
-        }
-    };
 
-    const fetchMonthlyEntries = async () => {
+            setAllEntries(Object.values(latestEntries));
+        } else {
+            fetchMonthlyEntries();
+        }
+    } catch (err) {
+        Alert.alert('Error', 'Failed to load data',err);
+    }
+}, [activeTab,fetchMonthlyEntries]);
+
+useEffect(() => {
+    fetchUsersAndData();
+}, [activeTab, fetchUsersAndData]);
+
+
+    const fetchMonthlyEntries = React.useCallback(async () => {
         try {
             const res = await employeeGlobalService.listEntries([]);
             let filtered = res.data.data;
@@ -73,10 +85,10 @@ export default function AdminDieselTrackingScreen() {
 
             const sorted = filtered.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
             setAllEntries(sorted);
-        } catch (err) {
+        } catch (_err) {
             Alert.alert('Error', 'Failed to load monthly data');
         }
-    };
+    }, [startDate, endDate, vehicleFilter]);
 
     const filteredEntries = allEntries.filter(entry => {
         if (!employeeSearch) return true;

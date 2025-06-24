@@ -10,6 +10,7 @@ import dieselService from '../../services/dailyEntryFormService';
 import authService from '../../services/authService';
 import vehicleService from '../../services/vechicleService';
 import employeeGlobalService from '../../services/employeeGlobalService';
+
 import { useRouter } from 'expo-router';
 
 export default function DieselForm() {
@@ -246,16 +247,6 @@ export default function DieselForm() {
                     />
                     {errors.fuelQuantity && <Text className="text-red-500 mt-1">{errors.fuelQuantity}</Text>}
 
-                    <Text className="text-[#064e3b] font-semibold text-base mt-4">Requested Trips Count</Text>
-                    <TextInput
-                        value={form.reqTripCount}
-                        onChangeText={(text) => handleChange('reqTripCount', text)}
-                        placeholder="e.g., 2"
-                        keyboardType="numeric"
-                        className="mt-2 bg-white border border-gray-300 rounded-xl px-4 py-3 text-[#064e3b]"
-                    />
-                    {errors.reqTripCount && <Text className="text-red-500 mt-1">{errors.reqTripCount}</Text>}
-
                     <Text className="text-[#064e3b] font-semibold text-base mt-4">Vehicle Number</Text>
                     <TouchableOpacity
                         onPress={() => setVehicleModalVisible(true)}
@@ -296,11 +287,21 @@ export default function DieselForm() {
                                     keyExtractor={(item) => item.$id}
                                     renderItem={({ item }) => (
                                         <TouchableOpacity
-                                            onPress={() => {
-                                                setSelectedEmployee({
-                                                    name: item.displayName || item.username || item.email,
-                                                    email: item.email
-                                                });
+                                            onPress={async () => {
+                                                const name = item.displayName || item.username || item.email;
+                                                const email = item.email;
+
+                                                const { data: tripCount, error } = await dieselService.getLatestReqTripCountByEmail(email);
+
+                                                if (error) {
+                                                    setAlert({ visible: true, title: 'Error', message: error.message });
+                                                }
+
+                                                setSelectedEmployee({ name, email });
+                                                setForm((prev) => ({
+                                                    ...prev,
+                                                    reqTripCount: tripCount?.toString() || '', // prefill or keep blank
+                                                }));
                                                 setEmployeeModalVisible(false);
                                             }}
                                             className="p-3 border-b border-gray-200"
@@ -309,11 +310,29 @@ export default function DieselForm() {
                                                 {item.displayName || item.username || item.email} ({item.email})
                                             </Text>
                                         </TouchableOpacity>
+
                                     )}
                                 />
                             </View>
                         </View>
                     </Modal>
+
+                    {selectedEmployee.email && (
+                        <>
+                            <Text className="text-[#064e3b] font-semibold text-base mt-4">Requested Trips Count</Text>
+                            <TextInput
+                                value={form.reqTripCount}
+                                onChangeText={(text) => handleChange('reqTripCount', text)}
+                                placeholder="e.g., 2"
+                                keyboardType="numeric"
+                                className="mt-2 bg-white border border-gray-300 rounded-xl px-4 py-3 text-[#064e3b]"
+                            />
+                            {errors.reqTripCount && <Text className="text-red-500 mt-1">{errors.reqTripCount}</Text>}
+                        </>
+                    )}
+
+                    {errors.reqTripCount && <Text className="text-red-500 mt-1">{errors.reqTripCount}</Text>}
+
 
                     {form.vehicleType && form.fuelQuantity && (
                         <>
@@ -335,10 +354,10 @@ export default function DieselForm() {
                     >
                         <Text className="text-white text-xl font-semibold">{loading ? 'Submitting...' : 'Submit'}</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity onPress={() => router.replace('/(supervisortabs)/component/trip/tripcountscreen')} style={styles.btn}>
+                    <TouchableOpacity onPress={() => router.replace('/(supervisortabs)/components/trip/tripcountscreen')} style={styles.btn}>
                         <Text style={styles.btnText}>Trip Count</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity onPress={() => router.replace('/(supervisortabs)/component/complaintscreen')} style={styles.btn}>
+                    <TouchableOpacity onPress={() => router.replace('/(supervisortabs)/components/complaintscreen')} style={styles.btn}>
                         <Text style={styles.btnText}>Complaint</Text>
                     </TouchableOpacity>
                 </ScrollView>

@@ -6,6 +6,7 @@ import {
     ScrollView,
     ActivityIndicator,
     TextInput,
+    Alert,
 } from 'react-native';
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import authService from '../../services/authService';
@@ -13,9 +14,9 @@ import dailyEntryFormService from '../../services/dailyEntryFormService';
 import tripService from '../../services/tripService';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../context/AuthContext';
-import employeeGlobalService from '../../services/employeeGlobalService'; // ✅ add this at the top
+import employeeGlobalService from '../../services/employeeGlobalService';
 import { Query } from 'react-native-appwrite';
-
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const ACCENT_COLOR = '#064e3b';
 
@@ -41,37 +42,39 @@ export default function Home() {
     const [balanceKm, setBalanceKm] = useState(null);
     const [currentMeterInput, setCurrentMeterInput] = useState('');
     const [remainingAfterInput, setRemainingAfterInput] = useState(null);
+    const [latestMeterReading, setLatestMeterReading] = useState(null);
 
     useEffect(() => {
         fetchProfile(new Date());
     }, []);
 
     useEffect(() => {
-        if (balanceKm !== null && currentMeterInput !== '') {
-            const diff = parseFloat(balanceKm) - parseFloat(currentMeterInput);
+        if (latestMeterReading !== null && balanceKm !== null && currentMeterInput !== '') {
+            const totalAvailableKm = parseFloat(latestMeterReading) + parseFloat(balanceKm);
+            const diff = totalAvailableKm - parseFloat(currentMeterInput);
             setRemainingAfterInput(isNaN(diff) ? null : diff);
         } else {
             setRemainingAfterInput(null);
         }
-    }, [currentMeterInput, balanceKm]);
+    }, [currentMeterInput, balanceKm, latestMeterReading]);
 
     const fetchProfile = async (date) => {
         try {
             setLoading(true);
-            const currentUser = await authService.getCurrentUser();
-            if (!currentUser?.email) return;
+            const currentUser  = await authService.getCurrentUser ();
+            if (!currentUser ?.email) return;
 
             const today = new Date();
 
             const entryList = await dailyEntryFormService.listDailyEntry();
             const foundTodayEntry = entryList?.data?.documents?.find((entry) => {
                 const entryDate = new Date(entry.$createdAt);
-                return isSameDay(today, entryDate) && entry.userEmail === currentUser.email;
+                return isSameDay(today, entryDate) && entry.userEmail === currentUser .email;
             });
             setDailyEntryDone(!!foundTodayEntry);
 
             const tripResult = await tripService.fetchTripsByDate(
-                currentUser.email,
+                currentUser .email,
                 date.toISOString().split('T')[0]
             );
 
@@ -79,18 +82,20 @@ export default function Home() {
                 setTripData(tripResult.data);
             }
 
-                const globalEntryRes = await employeeGlobalService.listEntries([
-                    Query.equal('userEmail', [currentUser.email.toLowerCase()]),
-                    Query.orderDesc('createdAt'),
-                    Query.limit(1)
-                ]);
-                console.log(globalEntryRes.data.data)
-                const latestGlobalEntry = globalEntryRes?.data?.data?.[0];
-                const latestRemainingKm = latestGlobalEntry?.remainingDistance;
+            const globalEntryRes = await employeeGlobalService.listEntries([
+                Query.equal('userEmail', [currentUser .email.toLowerCase()]),
+                Query.orderDesc('createdAt'),
+                Query.limit(1)
+            ]);
+            
+            const latestGlobalEntry = globalEntryRes?.data?.data?.[0];
+            const latestRemainingKm = latestGlobalEntry?.remainingDistance;
+            const latestMeter = latestGlobalEntry?.meterReading;
 
-                setBalanceKm(latestRemainingKm ?? null);
+            setBalanceKm(latestRemainingKm ?? null);
+            setLatestMeterReading(latestMeter ?? null);
 
-            const monthlyCountRes = await tripService.fetchMonthlyTripCount(currentUser.email);
+            const monthlyCountRes = await tripService.fetchMonthlyTripCount(currentUser .email);
             if (!monthlyCountRes.error) {
                 setMonthlyTripCount(monthlyCountRes.data);
             }
@@ -101,11 +106,40 @@ export default function Home() {
         }
     };
 
-
     const handleDateConfirm = (date) => {
         setSelectedDate(date);
         fetchProfile(date);
         setDatePickerVisibility(false);
+    };
+
+    const handleMeterInput = () => {
+        const meterValue = parseFloat(currentMeterInput);
+        if (isNaN(meterValue) || meterValue < 0) {
+            Alert.alert('Invalid Input', 'Please enter a valid meter reading.');
+            return;
+        }
+        
+        if (latestMeterReading === null || balanceKm === null) {
+            Alert.alert('Data Missing', 'Could not fetch latest meter reading data.');
+            return;
+        }
+
+        const totalAvailableKm = parseFloat(latestMeterReading) + parseFloat(balanceKm);
+        const diff = totalAvailableKm - meterValue;
+        
+        if (diff < 0) {
+            Alert.alert('Warning', 'The meter reading exceeds the available kilometers.');
+        }
+        setRemainingAfterInput(diff);
+    };
+
+    const clearSessionStorage = async () => {
+        try {
+            await AsyncStorage.removeItem('userSession');
+            Alert.alert('Session Cleared', 'User  session has been cleared.');
+        } catch (error) {
+            console.error('Error clearing session:', error);
+        }
     };
 
     if (loading) {
@@ -140,7 +174,6 @@ export default function Home() {
                 </View>
             </View>
 
-            {/* ✅ Monthly Trip Summary & Balance KM */}
             <View className="bg-white rounded-2xl p-5 shadow-sm border border-gray-200 mb-6">
                 <Text className="text-lg font-semibold text-gray-800 mb-4">Monthly Trip Summary</Text>
                 <View className="flex-row flex-wrap justify-between">
@@ -156,11 +189,14 @@ export default function Home() {
                     </View>
                 </View>
 
-                {/* ✅ Current Meter Check Input */}
                 <View className="mt-2">
                     <Text className="text-xs text-gray-600 mb-1">
-                        Check your current meter vs todays balance
+                        Check your current meter vs available kilometers
                     </Text>
+                    <View className="mb-2">
+                        <Text className="text-xs text-gray-500">Latest Meter Reading:</Text>
+                        <Text className="text-sm font-medium">{latestMeterReading ?? 'N/A'}</Text>
+                    </View>
                     <TextInput
                         placeholder="Enter current meter reading"
                         keyboardType="numeric"
@@ -168,10 +204,22 @@ export default function Home() {
                         onChangeText={setCurrentMeterInput}
                         className="border border-gray-300 rounded-md px-3 py-2 mb-2 text-gray-800 bg-white"
                     />
-                    {currentMeterInput !== '' && remainingAfterInput !== null && (
-                        <Text className={`text-sm font-semibold ${remainingAfterInput < 0 ? 'text-red-600' : 'text-green-700'}`}>
-                            Remaining after input: {remainingAfterInput.toFixed(2)} km
-                        </Text>
+                    <TouchableOpacity 
+                        onPress={handleMeterInput}
+                        className="bg-blue-500 py-2 rounded-md mb-2"
+                    >
+                        <Text className="text-white text-center">Calculate Remaining KM</Text>
+                    </TouchableOpacity>
+                    {remainingAfterInput !== null && (
+                        <View className="mt-2">
+                            <Text className="text-xs text-gray-500">Available Kilometers:</Text>
+                            <Text className="text-sm font-medium">
+                                {(parseFloat(latestMeterReading) + parseFloat(balanceKm)).toFixed(2)} km
+                            </Text>
+                            <Text className={`text-sm font-semibold mt-1 ${remainingAfterInput < 0 ? 'text-red-600' : 'text-green-700'}`}>
+                                Remaining after input: {remainingAfterInput.toFixed(2)} km
+                            </Text>
+                        </View>
                     )}
                 </View>
             </View>
@@ -275,6 +323,12 @@ export default function Home() {
                 className="mt-6 bg-green-900 py-4 rounded-xl shadow-sm"
             >
                 <Text className="text-white text-center font-bold text-base">Complaint List</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+                onPress={clearSessionStorage}
+                className="mt-6 bg-red-600 py-4 rounded-xl shadow-sm"
+            >
+                <Text className="text-white text-center font-bold text-base">Clear Session Storage</Text>
             </TouchableOpacity>
         </ScrollView>
     );

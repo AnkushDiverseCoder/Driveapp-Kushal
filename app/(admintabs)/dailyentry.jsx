@@ -8,8 +8,10 @@ import {
     TextInput,
     TouchableOpacity,
     View,
+    Alert,
 } from "react-native";
 import dailyEntryFormService from "../../services/dailyEntryFormService";
+import employeeGlobalService from "../../services/employeeGlobalService";
 import authService from "../../services/authService";
 
 const accentColor = "#006400";
@@ -76,6 +78,47 @@ const DailyEntryPage = () => {
         setFilteredData(filtered);
     }, [searchQuery, entries, filterDate, vehicleType]);
 
+    const handleDelete = async (id) => {
+        Alert.alert(
+            "Confirm Delete",
+            "Are you sure you want to delete this entry?",
+            [
+                {
+                    text: "Cancel",
+                    style: "cancel"
+                },
+                {
+                    text: "Delete",
+                    onPress: async () => {
+                        try {
+                            setLoading(true);
+                            // Delete from daily entries
+                            const res = await dailyEntryFormService.deleteDailyEntry(id);
+                            if (res.error) {
+                                Alert.alert("Error", res.error);
+                            } else {
+                                // Remove the deleted entry from the state
+                                setEntries(prevEntries => prevEntries.filter(entry => entry.$id !== id));
+                                Alert.alert("Success", "Entry deleted successfully");
+
+                                // Now delete from employee global service
+                                const globalDeleteRes = await employeeGlobalService.deleteEntry(id); // Assuming deleteEntry is the method to delete from global service
+                                if (globalDeleteRes.error) {
+                                    Alert.alert("Warning", "Entry deleted, but failed to remove from global tracking: " + globalDeleteRes.error);
+                                }
+                            }
+                        } catch (error) {
+                            Alert.alert("Error", "Failed to delete entry",error);
+                        } finally {
+                            setLoading(false);
+                        }
+                    }
+                }
+            ]
+        );
+    };
+
+
     const renderItem = ({ item }) => (
         <View
             style={{
@@ -97,6 +140,18 @@ const DailyEntryPage = () => {
             <Text style={{ fontSize: 12, color: "#888", marginTop: 4 }}>
                 {new Date(item.$createdAt).toLocaleString()}
             </Text>
+            <TouchableOpacity
+                onPress={() => handleDelete(item.$id)}
+                style={{
+                    backgroundColor: "red",
+                    padding: 8,
+                    borderRadius: 5,
+                    marginTop: 8,
+                    alignSelf: 'flex-end'
+                }}
+            >
+                <Text style={{ color: "#fff" }}>Delete</Text>
+            </TouchableOpacity>
         </View>
     );
 

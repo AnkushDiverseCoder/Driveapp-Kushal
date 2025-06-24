@@ -110,6 +110,27 @@ const dailyEntryFormService = {
         if (response.error) return { error: response.error };
         return { data: response.data };
     },
+
+    async getLatestReqTripCountByEmail(email) {
+        try {
+            const res = await databaseService.listDocuments(dbId, colId, [
+                Query.equal("userEmail", email),
+                Query.orderDesc("$createdAt"),
+                Query.limit(1),
+            ]);
+
+            if (res.error) return { error: res.error };
+
+            const latestEntry = res.documents?.[0];
+            if (!latestEntry) {
+                return { data: null }; // No entries yet
+            }
+
+            return { data: latestEntry.reqTripCount ?? null };
+        } catch (error) {
+            return { error: new Error("Failed to fetch latest trip count: " + error.message) };
+        }
+    },
 };
 
 export default dailyEntryFormService;

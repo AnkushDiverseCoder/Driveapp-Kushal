@@ -65,8 +65,10 @@ export default function TravelForm() {
     };
 
     const handleShiftConfirm = (date) => {
+        console.log("Selected date:", date);
         const hr = date.getHours() % 12 || 12;
-        const min = [0, 15, 30, 45].reduce((a, b) => Math.abs(min - a) < Math.abs(min - b) ? a : b);
+        const min = date.getMinutes();
+        console.log("Hour:", hr, "Minute:", min);
         setShiftHour(String(hr));
         setShiftMinute(String(min).padStart(2, '0'));
         setShiftPickerVisible(false);
