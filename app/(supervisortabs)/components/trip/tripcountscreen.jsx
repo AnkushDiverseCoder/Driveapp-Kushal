@@ -1,10 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import {
     View, Text, TextInput, Switch, TouchableOpacity,
-    FlatList, ActivityIndicator
+    FlatList, ActivityIndicator, Alert
 } from 'react-native';
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
+import * as XLSX from 'xlsx';
 
 import tripService from '../../../../services/tripService';
 import authService from '../../../../services/authService';
@@ -24,7 +27,8 @@ export default function TripCountScreen() {
             const user = users.find(u => u.email === email);
             return user?.displayName?.toLowerCase().includes(tripSearch.toLowerCase());
         })
-        .sort((a, b) => b[1] - a[1]);
+        .sort((a, b) => (b[1]?.count || 0) - (a[1]?.count || 0)); // ✅ sort by count
+
 
     const fetchTripData = async (mode = 'today', date = null) => {
         setLoading(true);
@@ -47,8 +51,50 @@ export default function TripCountScreen() {
 
     const handleDateConfirm = (date) => {
         setTripDate(date);
-        fetchTripData(activeTab, date);
+        if (activeTab === 'today') fetchTripData('today', date);
+        else fetchTripData('month', date);
         setShowDatePicker(false);
+    };
+
+    const formatDate = (date) => date.toISOString().split('T')[0];
+
+    const exportToExcel = async (filtered = false) => {
+        try {
+            const exportData = (filtered ? filteredTripEntries.filter(([_, c]) => c.count >= 5) : Object.entries(tripCounts)).map(([email, data]) => {
+
+                const user = users.find(u => u.email === email);
+                return {
+                    Name: user?.displayName || 'Unknown',
+                    Email: user?.email || 'N/A',
+                    Trips: data.count,
+                };
+            });
+
+            if (filtered && exportData.length === 0) {
+                Alert.alert('No Data', 'No users with 5 or more trips.');
+                return;
+            }
+
+            const ws = XLSX.utils.json_to_sheet(exportData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Trip Summary');
+            const wbout = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
+
+            const filename = `${activeTab}_trip_report_${formatDate(tripDate || new Date())}.xlsx`;
+            const fileUri = FileSystem.documentDirectory + filename;
+
+            await FileSystem.writeAsStringAsync(fileUri, wbout, {
+                encoding: FileSystem.EncodingType.Base64,
+            });
+
+            await Sharing.shareAsync(fileUri, {
+                mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                dialogTitle: 'Export Trip Report',
+                UTI: 'com.microsoft.excel.xlsx',
+            });
+        } catch (err) {
+            Alert.alert('Export Failed', err.message || 'Failed to export.');
+        }
     };
 
     return (
@@ -96,7 +142,7 @@ export default function TripCountScreen() {
 
             <DateTimePickerModal
                 isVisible={showDatePicker}
-                mode="date"
+                mode={activeTab === 'month' ? 'date' : 'date'}
                 onConfirm={handleDateConfirm}
                 onCancel={() => setShowDatePicker(false)}
             />
@@ -108,25 +154,51 @@ export default function TripCountScreen() {
                 className="bg-white border border-[#064e3b] rounded-xl px-4 py-3 text-[#064e3b] mb-4"
             />
 
+            <View className="flex-row justify-between gap-2 mb-4">
+                {activeTab === 'today' && (
+                    <TouchableOpacity onPress={() => exportToExcel(true)} className="bg-[#064e3b] px-4 py-2 rounded-xl flex-1">
+                        <Text className="text-white text-center font-semibold text-sm">Export ≥5 Trips</Text>
+                    </TouchableOpacity>
+                )}
+                <TouchableOpacity onPress={() => exportToExcel(false)} className="bg-[#064e3b] px-4 py-2 rounded-xl flex-1">
+                    <Text className="text-white text-center font-semibold text-sm">Export All</Text>
+                </TouchableOpacity>
+            </View>
+
             {loading ? (
                 <ActivityIndicator size="large" color="#064e3b" />
             ) : filteredTripEntries.length === 0 ? (
                 <Text className="text-center text-gray-500 mt-6">No trips found.</Text>
             ) : (
-                <FlatList
-                    data={filteredTripEntries}
-                    keyExtractor={([email]) => email}
-                    renderItem={({ item: [email, count], index }) => {
-                        const user = users.find(u => u.email === email);
-                        return (
-                            <View className={`flex-row justify-between items-center py-3 px-4 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-100'} rounded-lg mb-2`}>
-                                <Text className="text-[#064e3b] font-medium flex-1">{user?.displayName || 'Unknown'}</Text>
-                                <Text className="text-right text-[#064e3b] font-bold w-12">{count}</Text>
-                            </View>
-                        );
-                    }}
-                />
+                <>
+                    <View className="flex-row justify-between items-center px-4 pb-2">
+                        <Text className="text-[#064e3b] font-bold flex-1">Employee</Text>
+                        <Text className="text-[#064e3b] font-bold w-60 text-right">Completed / Required</Text>
+                    </View>
+
+
+                    <FlatList
+                        data={filteredTripEntries}
+                        keyExtractor={([email]) => email}
+                        renderItem={({ item: [email, data], index }) => {
+                            const user = users.find(u => u.email === email);
+                            const { count, reqTripCount } = data;
+                            const isMet = reqTripCount > 0 && count >= reqTripCount;
+
+                            return (
+                                <View className={`flex-row justify-between items-center py-3 px-4 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-100'} rounded-lg mb-2`}>
+                                    <Text className="text-[#064e3b] font-medium flex-1">{user?.displayName || 'Unknown'}</Text>
+                                    <Text className={`text-right font-bold w-40 ${isMet ? 'text-green-600' : 'text-red-600'}`}>
+                                        {count} / {reqTripCount || '—'}
+                                    </Text>
+                                </View>
+                            );
+                        }}
+                    />
+
+                </>
             )}
+
         </SafeAreaView>
     );
 }

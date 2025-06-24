@@ -3,6 +3,7 @@
 import { ID, Query } from "react-native-appwrite";
 import databaseService from "./databaseService";
 import authService from "./authService";
+import employeeGlobalService from './employeeGlobalService';
 
 const dbId = process.env.EXPO_PUBLIC_APPWRITE_DB_ID;
 const colId = process.env.EXPO_PUBLIC_APPWRITE_COL_TRIP_ID;
@@ -135,7 +136,7 @@ const tripService = {
         return { data: trip };
     },
 
-    async fetchUserTripCounts(mode = "today", dateParam = null) {
+    async fetchUserTripCounts(mode = 'today', dateParam = null) {
         let start, end;
 
         if (mode === "month") {
@@ -153,25 +154,55 @@ const tripService = {
             end.setHours(6, 57, 59, 999);
         }
 
-        const response = await databaseService.listAllDocuments(dbId, colId, [
+        const tripRes = await databaseService.listAllDocuments(dbId, colId, [
             Query.greaterThanEqual('$createdAt', start.toISOString()),
             Query.lessThan('$createdAt', end.toISOString()),
         ]);
 
-        if (response.error) return { error: response.error };
+        if (tripRes.error) return { error: tripRes.error };
 
-        const userTripCounts = {};
-        (response.data || []).forEach((trip) => {
-            const email = trip.userEmail?.toLowerCase?.();
+        const tripCounts = {};
+        (tripRes.data || []).forEach((trip) => {
+            const email = trip.userEmail?.toLowerCase();
             if (!email) return;
-            userTripCounts[email] = (userTripCounts[email] || 0) + 1;
+            tripCounts[email] = (tripCounts[email] || 0) + 1;
         });
 
-        const sorted = Object.entries(userTripCounts).sort((a, b) => b[1] - a[1]);
-        return { data: Object.fromEntries(sorted) };
+        // Get latest reqTripCount for each user
+        const globalRes = await employeeGlobalService.listEntries([
+            Query.greaterThanEqual('createdAt', start.toISOString()),
+            Query.lessThan('createdAt', end.toISOString()),
+        ]);
+        if (!globalRes.success) return { error: globalRes.error };
+        const latestReqMap = {};
+        for (const entry of globalRes.data.data) {
+            const email = entry.userEmail?.toLowerCase?.();
+            if (!email) continue;
+            if (!latestReqMap[email] || new Date(entry.createdAt) > new Date(latestReqMap[email].createdAt)) {
+                latestReqMap[email] = entry;
+            }
+        }
+
+        const result = {};
+        for (const [email, count] of Object.entries(tripCounts)) {
+            result[email] = {
+                count,
+                reqTripCount: latestReqMap[email]?.reqTripCount ?? 0,
+            };
+        }
+
+        // Also include users who have reqTripCount but no trips
+        for (const email of Object.keys(latestReqMap)) {
+            if (!result[email]) {
+                result[email] = {
+                    count: 0,
+                    reqTripCount: latestReqMap[email].reqTripCount ?? 0,
+                };
+            }
+        }
+
+        return { data: result };
     },
-
-
     async fetchTripsByDateOnly(startDateStr, endDateStr) {
         if (!startDateStr || !endDateStr) return { data: [] };
 

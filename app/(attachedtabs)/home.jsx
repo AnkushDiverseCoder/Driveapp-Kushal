@@ -1,94 +1,87 @@
-import React, { useState, useEffect } from 'react'
+// Import required packages
+import React, { useState, useEffect } from 'react';
 import {
-    View,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    ScrollView,
-    Platform,
-    KeyboardAvoidingView,
-    Modal,
-} from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
-import tripService from '../../services/tripService'
-import CustomAlert from '../../components/CustomAlert'
-import { useAuth } from '../../context/AuthContext'
-import vehicleService from '../../services/vechicleService'
-import clientService from '../../services/clientService'
+    View, Text, TextInput, TouchableOpacity,
+    ScrollView, Modal, Alert, Platform, KeyboardAvoidingView
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import DateTimePickerModal from 'react-native-modal-datetime-picker';
 
-const tripMethods = ['pickup', 'drop']
+import tripService from '../../services/tripService';
+import vehicleService from '../../services/vechicleService';
+import clientService from '../../services/clientService';
+import CustomAlert from '../../components/CustomAlert';
+import { useAuth } from '../../context/AuthContext';
+
+const tripMethods = ['pickup', 'drop'];
 
 export default function TravelForm() {
-    const [siteOptions, setSiteOptions] = useState([])
-    useEffect(() => {
-        const fetchClients = async () => {
-            const { success, data, error } = await clientService.listClients();
-            if (success) {
-                const names = data.data.map((item) => item.siteName).filter(Boolean);
-                setSiteOptions(names);
-            } else {
-                console.error('Failed to fetch clients:', error);
-            }
-        };
-        fetchClients();
-    }, []);
+    const { user } = useAuth();
 
     const [form, setForm] = useState({
-        siteName: '',
-        tripMethod: '',
-        tripId: '',
-        startKm: '',
-        endKm: '',
-        escort: false,
-        vehicleNumber: '',
-    })
+        siteName: '', tripMethod: '', tripId: '',
+        vehicleNumber: '', startKm: '', escort: false,
+    });
 
-    const [vehicleList, setVehicleList] = useState([])
-    const [searchQuery, setSearchQuery] = useState('')
-    const [vehicleModalVisible, setVehicleModalVisible] = useState(false)
-    const [alert, setAlert] = useState({ visible: false, title: '', message: '' })
-    const [errors, setErrors] = useState({})
-    const [loading, setLoading] = useState(false)
-    const { user } = useAuth()
+    const [shiftHour, setShiftHour] = useState('');
+    const [shiftMinute, setShiftMinute] = useState('');
+    const [shiftPickerVisible, setShiftPickerVisible] = useState(false);
+
+    const [siteOptions, setSiteOptions] = useState([]);
+    const [vehicleList, setVehicleList] = useState([]);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [vehicleModalVisible, setVehicleModalVisible] = useState(false);
+
+    const [alert, setAlert] = useState({ visible: false, title: '', message: '' });
+    const [errors, setErrors] = useState({});
+    const [loading, setLoading] = useState(false);
+
+    const isEnabled = {
+        siteName: true,
+        tripMethod: !!form.siteName,
+        tripId: !!form.tripMethod,
+        vehicleNumber: !!form.tripId,
+        startKm: !!form.vehicleNumber,
+    };
 
     useEffect(() => {
-        const fetchVehicles = async () => {
-            try {
-                const response = await vehicleService.listVehicles();
-                const documents = response?.data?.data || [];
-                const fetchedList = documents
-                    .filter(doc => doc.labels !== 'employee') // 👈 Filter out 'employee'
-                    .map(doc => ({
-                        number: doc.vehicleNumber || 'Unknown',
-                        type: doc.vehicleType || 'Unknown',
-                        labels: doc.labels || 'Unknown',
-                    }));
-                setVehicleList(fetchedList);
-            } catch (error) {
-                console.error('Error fetching vehicles:', error);
-                setVehicleList([]); // fallback to empty
-            }
+        const fetchClients = async () => {
+            const { success, data } = await clientService.listClients();
+            if (success) setSiteOptions(data.data.map(i => i.siteName).filter(Boolean));
         };
+        const fetchVehicles = async () => {
+            const { data } = await vehicleService.listVehicles();
+            setVehicleList(data?.data.filter(v => v.labels !== 'attached').map(v => ({
+                number: v.vehicleNumber || '', type: v.vehicleType || ''
+            })));
+        };
+        fetchClients();
         fetchVehicles();
     }, []);
 
     const handleChange = (name, value) => {
-        setForm(prev => ({ ...prev, [name]: value }))
-        setErrors(prev => ({ ...prev, [name]: null }))
-        console.log(vehicleList)
-    }
+        setForm(prev => ({ ...prev, [name]: value }));
+        setErrors(prev => ({ ...prev, [name]: null }));
+    };
+
+    const handleShiftConfirm = (date) => {
+        const hr = date.getHours() % 12 || 12;
+        const min = [0, 15, 30, 45].reduce((a, b) => Math.abs(min - a) < Math.abs(min - b) ? a : b);
+        setShiftHour(String(hr));
+        setShiftMinute(String(min).padStart(2, '0'));
+        setShiftPickerVisible(false);
+    };
 
     const validate = () => {
-        let valid = true;
         const newErrors = {};
-        const requiredFields = ['siteName', 'tripMethod', 'tripId'];
+        let valid = true;
 
-        for (const key of requiredFields) {
-            if (!form[key]) {
-                newErrors[key] = 'This field is required';
+        ['siteName', 'tripMethod', 'tripId', 'vehicleNumber', 'startKm'].forEach(field => {
+            if (!form[field]) {
+                newErrors[field] = 'This field is required';
                 valid = false;
             }
-        }
+        });
 
         if (form.tripId && !/^[\d_-]+$/.test(form.tripId)) {
             newErrors.tripId = 'Trip ID must contain only numbers, - or _';
@@ -96,21 +89,18 @@ export default function TravelForm() {
         }
 
         if (form.siteName === 'Sagility' && !form.tripId.includes('-')) {
-            newErrors.tripId = 'Trip ID for Sagility must include a "-"';
+            newErrors.tripId = 'Trip ID for Sagility must include "-"';
             valid = false;
         }
 
-        if (!form.vehicleNumber) {
-            newErrors.vehicleNumber = 'Please select a vehicle number';
-            valid = false;
-        }
-        if (!form.startKm && form.startKm !== 0 && form.startKm !== '') {
-            newErrors.startKm = 'Please Enter a Start Km';
+        if (!shiftHour || !shiftMinute) {
+            Alert.alert('Error', 'Please select a shift time');
             valid = false;
         }
 
-        if (form.startKm && form.endKm && parseFloat(form.endKm) < parseFloat(form.startKm)) {
-            newErrors.endKm = 'End KM must be greater than Start KM';
+        const start = parseFloat(form.startKm);
+        if (isNaN(start) || start < 100) {
+            newErrors.startKm = 'Start KM must be ≥ 100';
             valid = false;
         }
 
@@ -120,242 +110,173 @@ export default function TravelForm() {
 
     const handleSubmit = async () => {
         if (!validate()) return;
-        setLoading(true);
-
-        const distanceTravelled = form.endKm && form.startKm
-            ? parseFloat(form.endKm) - parseFloat(form.startKm)
-            : 0;
 
         const payload = {
             ...form,
-            startKm: form.startKm ? parseFloat(form.startKm) : 0,
-            endKm: form.endKm ? parseFloat(form.endKm) : 0,
-            distanceTravelled,
+            startKm: parseFloat(form.startKm),
+            endKm: 0,
+            distanceTravelled: 0,
+            shiftTime: `${shiftHour}:${shiftMinute}`,
             userEmail: user.email,
-            attached: true,
+            attached: false,
         };
 
         try {
-            const { data, error } = await tripService.createTrip(payload);
+            setLoading(true);
+            const { error } = await tripService.createTrip(payload);
             setLoading(false);
+
             if (error) {
-                setErrors(prev => ({ ...prev, tripId: error.includes('Trip ID') ? error : null }));
-                setAlert({
-                    visible: true,
-                    title: 'Error',
-                    message: error,
-                });
+                setAlert({ visible: true, title: 'Error', message: error });
             } else {
-                setAlert({
-                    visible: true,
-                    title: 'Success',
-                    message: 'Trip submitted successfully!',
-                });
-                setForm({
-                    siteName: '',
-                    tripMethod: '',
-                    tripId: '',
-                    startKm: '',
-                    endKm: '',
-                    escort: false,
-                    vehicleNumber: '',
-                });
+                setAlert({ visible: true, title: 'Success', message: 'Trip submitted successfully!' });
+                setForm({ siteName: '', tripMethod: '', tripId: '', vehicleNumber: '', startKm: '', escort: false });
+                setShiftHour('');
+                setShiftMinute('');
             }
         } catch (e) {
             setLoading(false);
-            setAlert({
-                visible: true,
-                title: 'Error',
-                message: 'Unexpected error occurred: ' + e.message,
-            });
+            setAlert({ visible: true, title: 'Error', message: e.message });
         }
     };
 
-    const todayDate = new Date().toLocaleDateString('en-IN', {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric',
-    })
+    const todayDate = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 
     return (
         <SafeAreaView style={{ flex: 1, backgroundColor: 'white' }}>
-            <KeyboardAvoidingView
-                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-                style={{ flex: 1 }}
-            >
-                <ScrollView
-                    contentContainerStyle={{ padding: 20, paddingBottom: 40 }}
-                    keyboardShouldPersistTaps="handled"
-                >
-                    <View style={{ flex: 1 }}>
-                        {/* SITE */}
-                        <Text className="text-[#064e3b] font-semibold text-base">Site Name</Text>
-                        <View className="mt-2 bg-white border border-gray-300 rounded-lg">
-                            {siteOptions.map((option) => (
-                                <TouchableOpacity
-                                    key={option}
-                                    className={`px-4 py-3 ${form.siteName === option ? 'bg-[#e6f4f0]' : ''}`}
-                                    onPress={() => handleChange('siteName', option)}
-                                >
-                                    <Text className="text-[#064e3b]">{option}</Text>
-                                </TouchableOpacity>
-                            ))}
-                        </View>
-                        {errors.siteName && <Text className="text-red-500 mt-1">{errors.siteName}</Text>}
-
-                        {/* TRIP METHOD */}
-                        <Text className="text-[#064e3b] font-semibold text-base mt-4">Trip Method</Text>
-                        <View className="flex-row mt-2">
-                            {tripMethods.map((type) => (
-                                <TouchableOpacity
-                                    key={type}
-                                    onPress={() => handleChange('tripMethod', type)}
-                                    className={`mr-4 px-4 py-2 rounded-lg border ${form.tripMethod === type ? 'bg-[#064e3b]' : 'border-gray-400'}`}
-                                >
-                                    <Text className={`${form.tripMethod === type ? 'text-white' : 'text-[#064e3b]'} capitalize`}>
-                                        {type}
-                                    </Text>
-                                </TouchableOpacity>
-                            ))}
-                        </View>
-                        {errors.tripMethod && <Text className="text-red-500 mt-1">{errors.tripMethod}</Text>}
-
-                        {/* DATE + TRIP ID */}
-                        <Text className="text-[#064e3b] font-semibold text-base mt-4">Date of Entry</Text>
-                        <TextInput
-                            value={todayDate}
-                            editable={false}
-                            className="border border-gray-400 rounded-lg px-3 py-2 mt-2 text-[#064e3b] bg-gray-100"
-                        />
-
-                        <Text className="text-[#064e3b] font-semibold text-base">Trip ID</Text>
-                        <TextInput
-                            value={form.tripId}
-                            onChangeText={(text) => {
-                                let formatted = text.replace(/[^0-9_-]/g, '')
-                                if (form.siteName === 'Sagility' && formatted.length === 9 && !formatted.includes('-')) {
-                                    formatted = formatted.slice(0, 8) + '-' + formatted.slice(8)
-                                }
-                                handleChange('tripId', formatted)
-                            }}
-                            placeholder="Enter trip ID"
-                            className="border border-gray-400 rounded-lg px-3 py-2 mt-2 text-[#064e3b]"
-                        />
-                        {errors.tripId && <Text className="text-red-500 mt-1">{errors.tripId}</Text>}
-
-                        {/* ESCORT */}
-                        <Text className="text-[#064e3b] font-semibold text-base mt-4">Escort</Text>
-                        <TouchableOpacity
-                            onPress={() => handleChange('escort', !form.escort)}
-                            className={`mt-2 px-4 py-2 border rounded-lg ${form.escort ? 'bg-[#064e3b]' : 'border-gray-400'}`}
-                        >
-                            <Text className={`${form.escort ? 'text-white' : 'text-[#064e3b]'}`}>{form.escort ? 'Yes' : 'No'}</Text>
+            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+                <ScrollView contentContainerStyle={{ padding: 20 }}>
+                    {/* Site Name */}
+                    <Text style={{ color: 'black', fontWeight: 'bold' }}>Site Name</Text>
+                    {siteOptions.map((opt, i) => (
+                        <TouchableOpacity key={i} onPress={() => handleChange('siteName', opt)} style={{
+                            padding: 12, marginTop: 8, backgroundColor: form.siteName === opt ? '#e6f4f0' : 'white',
+                            borderWidth: 1, borderColor: '#ccc', borderRadius: 8
+                        }}>
+                            <Text style={{ color: 'black', fontWeight: 'bold' }}>{opt}</Text>
                         </TouchableOpacity>
+                    ))}
+                    {errors.siteName && <Text style={{ color: 'red' }}>{errors.siteName}</Text>}
 
-                        {/* VEHICLE MODAL */}
-                        <Text className="text-[#064e3b] font-semibold text-base mt-4">Vehicle Number</Text>
-                        <TouchableOpacity
-                            onPress={() => setVehicleModalVisible(true)}
-                            className="mt-2 bg-white border border-gray-400 rounded px-3 py-2"
-                        >
-                            <Text className={`${form.vehicleNumber ? 'text-black' : 'text-gray-400'}`}>
-                                {form.vehicleNumber || 'Select vehicle number'}
-                            </Text>
-                        </TouchableOpacity>
-                        {errors.vehicleNumber && <Text className="text-red-500 mt-1">{errors.vehicleNumber}</Text>}
-
-                        <Modal
-                            visible={vehicleModalVisible}
-                            animationType="slide"
-                            onRequestClose={() => setVehicleModalVisible(false)}
-                            transparent={true}
-                        >
-                            <View className="flex-1 bg-black bg-opacity-50 justify-center items-center px-8">
-                                <View className="bg-white rounded-lg p-4 w-full max-h-[90%]">
-                                    <Text className="text-center text-lg font-semibold text-[#064e3b] mb-4">
-                                        Select Vehicle Number
-                                    </Text>
-                                    <TextInput
-                                        placeholder="Search vehicle number"
-                                        value={searchQuery}
-                                        onChangeText={setSearchQuery}
-                                        className="border border-gray-400 rounded px-3 py-2 mb-4 text-[#064e3b]"
-                                    />
-                                    <ScrollView className="max-h-[70%]">
-                                        {vehicleList.filter(v =>
-                                            v.number.toLowerCase().includes(searchQuery.toLowerCase())
-                                        ).map((v, idx) => (
-                                            <TouchableOpacity
-                                                key={idx}
-                                                className="py-2 border-b border-gray-200"
-                                                onPress={() => {
-                                                    handleChange('vehicleNumber', v.number)
-                                                    setVehicleModalVisible(false)
-                                                    setSearchQuery('')
-                                                }}
-                                            >
-                                                <Text className="text-[#064e3b]">{v.number} ({v.type})</Text>
-                                            </TouchableOpacity>
-                                        ))}
-                                        {vehicleList.filter(v =>
-                                            v.number.toLowerCase().includes(searchQuery.toLowerCase())
-                                        ).length === 0 && (
-                                                <Text className="text-center text-gray-400">No matching vehicles</Text>
-                                            )}
-                                    </ScrollView>
-                                    <TouchableOpacity
-                                        onPress={() => {
-                                            setVehicleModalVisible(false)
-                                            setSearchQuery('')
-                                        }}
-                                        className="mt-4 py-2 bg-[#064e3b] rounded"
-                                    >
-                                        <Text className="text-white text-center font-semibold">Close</Text>
-                                    </TouchableOpacity>
-                                </View>
-                            </View>
-                        </Modal>
-
-                        {/* KM FIELDS */}
-                        <Text className="text-[#064e3b] font-semibold text-base mt-4">Start KM</Text>
-                        <TextInput
-                            value={form.startKm}
-                            onChangeText={(text) => handleChange('startKm', text)}
-                            placeholder="Enter start KM"
-                            keyboardType="numeric"
-                            className="border border-gray-400 rounded-lg px-3 py-2 mt-2 text-[#064e3b]"
-                        />
-                        {errors.startKm && <Text className="text-red-500 mt-1">{errors.startKm}</Text>}
-
-                        <Text className="text-[#064e3b] font-semibold text-base mt-4">End KM</Text>
-                        <TextInput
-                            value={form.endKm}
-                            onChangeText={(text) => handleChange('endKm', text)}
-                            placeholder="Enter end KM"
-                            keyboardType="numeric"
-                            className="border border-gray-400 rounded-lg px-3 py-2 mt-2 text-[#064e3b]"
-                        />
-                        {errors.endKm && <Text className="text-red-500 mt-1">{errors.endKm}</Text>}
-
-                        {/* SUBMIT */}
-                        <TouchableOpacity
-                            onPress={handleSubmit}
-                            className="bg-[#064e3b] rounded-xl py-3 mt-6"
-                            disabled={loading}
-                        >
-                            <Text className="text-white text-center font-semibold text-lg">
-                                {loading ? 'Submitting...' : 'Submit Trip'}
-                            </Text>
-                        </TouchableOpacity>
+                    {/* Trip Method */}
+                    <Text style={{ color: 'black', fontWeight: 'bold', marginTop: 16 }}>Trip Method</Text>
+                    <View style={{ flexDirection: 'row', marginTop: 8 }}>
+                        {tripMethods.map(method => (
+                            <TouchableOpacity
+                                key={method}
+                                onPress={() => isEnabled.tripMethod && handleChange('tripMethod', method)}
+                                style={{
+                                    backgroundColor: method === 'pickup' ? '#ccf3d9' : '#fff9c4',
+                                    padding: 12, marginRight: 12, borderRadius: 8,
+                                    borderWidth: 1, borderColor: form.tripMethod === method ? '#064e3b' : '#ccc'
+                                }}
+                            >
+                                <Text style={{ color: 'black', fontWeight: 'bold', textTransform: 'capitalize' }}>{method}</Text>
+                            </TouchableOpacity>
+                        ))}
                     </View>
+                    {errors.tripMethod && <Text style={{ color: 'red' }}>{errors.tripMethod}</Text>}
+
+                    {/* Trip ID */}
+                    <Text style={{ color: 'black', fontWeight: 'bold', marginTop: 16 }}>Trip ID</Text>
+                    <TextInput
+                        editable={isEnabled.tripId}
+                        value={form.tripId}
+                        onChangeText={text => handleChange('tripId', form.siteName === 'Sagility' && text.length === 9 && !text.includes('-')
+                            ? text.slice(0, 8) + '-' + text.slice(8) : text.replace(/[^0-9_-]/g, '')
+                        )}
+                        placeholder="Enter Trip ID"
+                        style={{
+                            borderWidth: 1, borderColor: '#ccc', borderRadius: 8,
+                            padding: 12, color: 'black', fontWeight: 'bold', marginTop: 8
+                        }}
+                    />
+                    {errors.tripId && <Text style={{ color: 'red' }}>{errors.tripId}</Text>}
+
+                    {/* Vehicle Number */}
+                    <Text style={{ color: 'black', fontWeight: 'bold', marginTop: 16 }}>Vehicle Number</Text>
+                    <TouchableOpacity
+                        disabled={!isEnabled.vehicleNumber}
+                        onPress={() => setVehicleModalVisible(true)}
+                        style={{
+                            marginTop: 8, padding: 12, borderRadius: 8, borderWidth: 1,
+                            borderColor: '#ccc', backgroundColor: 'white'
+                        }}
+                    >
+                        <Text style={{ color: 'black', fontWeight: 'bold' }}>{form.vehicleNumber || 'Select vehicle number'}</Text>
+                    </TouchableOpacity>
+                    {errors.vehicleNumber && <Text style={{ color: 'red' }}>{errors.vehicleNumber}</Text>}
+
+                    {/* Vehicle Modal */}
+                    <Modal visible={vehicleModalVisible} transparent animationType="slide">
+                        <View style={{ flex: 1, backgroundColor: '#000000aa', justifyContent: 'center', padding: 20 }}>
+                            <View style={{ backgroundColor: 'white', padding: 20, borderRadius: 10 }}>
+                                <Text style={{ textAlign: 'center', fontWeight: 'bold', color: '#064e3b', fontSize: 18 }}>Select Vehicle Number</Text>
+                                <TextInput
+                                    placeholder="Search vehicle"
+                                    value={searchQuery}
+                                    onChangeText={setSearchQuery}
+                                    style={{ borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 10, marginVertical: 10 }}
+                                />
+                                <ScrollView style={{ maxHeight: 300 }}>
+                                    {vehicleList.filter(v => v.number.toLowerCase().includes(searchQuery.toLowerCase())).map((v, i) => (
+                                        <TouchableOpacity key={i} onPress={() => {
+                                            handleChange('vehicleNumber', v.number);
+                                            setVehicleModalVisible(false);
+                                            setSearchQuery('');
+                                        }}>
+                                            <Text style={{ paddingVertical: 10, borderBottomWidth: 1, borderColor: '#eee' }}>{v.number} ({v.type})</Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </ScrollView>
+                                <TouchableOpacity onPress={() => setVehicleModalVisible(false)} style={{ marginTop: 16, backgroundColor: '#064e3b', padding: 12, borderRadius: 8 }}>
+                                    <Text style={{ textAlign: 'center', color: 'white', fontWeight: 'bold' }}>Close</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    </Modal>
+
+                    {/* Start KM */}
+                    <Text style={{ color: 'black', fontWeight: 'bold', marginTop: 16 }}>Start KM</Text>
+                    <TextInput
+                        editable={isEnabled.startKm}
+                        keyboardType="numeric"
+                        placeholder="Enter Start KM"
+                        value={form.startKm}
+                        onChangeText={text => handleChange('startKm', text)}
+                        style={{ borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 12, marginTop: 8, color: 'black', fontWeight: 'bold' }}
+                    />
+                    {errors.startKm && <Text style={{ color: 'red' }}>{errors.startKm}</Text>}
+
+                    {/* Escort */}
+                    <Text style={{ color: 'black', fontWeight: 'bold', marginTop: 16 }}>Escort</Text>
+                    <TouchableOpacity
+                        onPress={() => handleChange('escort', !form.escort)}
+                        style={{ marginTop: 8, padding: 12, borderRadius: 8, borderWidth: 1, borderColor: '#ccc', backgroundColor: form.escort ? '#064e3b' : 'white' }}
+                    >
+                        <Text style={{ color: form.escort ? 'white' : 'black', fontWeight: 'bold' }}>{form.escort ? 'Yes' : 'No'}</Text>
+                    </TouchableOpacity>
+
+                    {/* Shift Time */}
+                    <Text style={{ color: 'black', fontWeight: 'bold', marginTop: 16 }}>Shift Time</Text>
+                    <TouchableOpacity onPress={() => setShiftPickerVisible(true)} style={{ marginTop: 8, padding: 12, borderRadius: 8, borderWidth: 1, borderColor: '#ccc', backgroundColor: 'white' }}>
+                        <Text style={{ color: 'black', fontWeight: 'bold' }}>{shiftHour && shiftMinute ? `${shiftHour}:${shiftMinute}` : 'Select shift time'}</Text>
+                    </TouchableOpacity>
+                    <DateTimePickerModal
+                        isVisible={shiftPickerVisible}
+                        mode="time"
+                        onConfirm={handleShiftConfirm}
+                        onCancel={() => setShiftPickerVisible(false)}
+                        minuteInterval={15}
+                    />
+
+                    {/* Submit */}
+                    <TouchableOpacity onPress={handleSubmit} disabled={loading} style={{ marginTop: 30, backgroundColor: '#064e3b', padding: 14, borderRadius: 10 }}>
+                        <Text style={{ textAlign: 'center', color: 'white', fontWeight: 'bold' }}>{loading ? 'Submitting...' : 'Submit Trip'}</Text>
+                    </TouchableOpacity>
                 </ScrollView>
             </KeyboardAvoidingView>
-            <CustomAlert
-                visible={alert.visible}
-                title={alert.title}
-                message={alert.message}
-                onClose={() => setAlert({ ...alert, visible: false })}
-            />
+            <CustomAlert visible={alert.visible} title={alert.title} message={alert.message} onClose={() => setAlert({ ...alert, visible: false })} />
         </SafeAreaView>
-    )
+    );
 }

@@ -13,6 +13,9 @@ import dailyEntryFormService from '../../services/dailyEntryFormService';
 import tripService from '../../services/tripService';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../context/AuthContext';
+import employeeGlobalService from '../../services/employeeGlobalService'; // ✅ add this at the top
+import { Query } from 'react-native-appwrite';
+
 
 const ACCENT_COLOR = '#064e3b';
 
@@ -58,7 +61,15 @@ export default function Home() {
             const currentUser = await authService.getCurrentUser();
             if (!currentUser?.email) return;
 
+            const today = new Date();
+
             const entryList = await dailyEntryFormService.listDailyEntry();
+            const foundTodayEntry = entryList?.data?.documents?.find((entry) => {
+                const entryDate = new Date(entry.$createdAt);
+                return isSameDay(today, entryDate) && entry.userEmail === currentUser.email;
+            });
+            setDailyEntryDone(!!foundTodayEntry);
+
             const tripResult = await tripService.fetchTripsByDate(
                 currentUser.email,
                 date.toISOString().split('T')[0]
@@ -66,17 +77,18 @@ export default function Home() {
 
             if (!tripResult.error) {
                 setTripData(tripResult.data);
-                const balance = tripResult?.data?.allTrips?.[0]?.remainingKm;
-                setBalanceKm(balance ?? null);
             }
 
-            const today = new Date();
-            const documents = entryList?.data?.documents ?? [];
-            const foundTodayEntry = documents.find((entry) => {
-                const entryDate = new Date(entry.$createdAt);
-                return isSameDay(today, entryDate) && entry.userEmail === currentUser.email;
-            });
-            setDailyEntryDone(!!foundTodayEntry);
+                const globalEntryRes = await employeeGlobalService.listEntries([
+                    Query.equal('userEmail', [currentUser.email.toLowerCase()]),
+                    Query.orderDesc('createdAt'),
+                    Query.limit(1)
+                ]);
+                console.log(globalEntryRes.data.data)
+                const latestGlobalEntry = globalEntryRes?.data?.data?.[0];
+                const latestRemainingKm = latestGlobalEntry?.remainingDistance;
+
+                setBalanceKm(latestRemainingKm ?? null);
 
             const monthlyCountRes = await tripService.fetchMonthlyTripCount(currentUser.email);
             if (!monthlyCountRes.error) {
@@ -88,6 +100,7 @@ export default function Home() {
             setLoading(false);
         }
     };
+
 
     const handleDateConfirm = (date) => {
         setSelectedDate(date);

@@ -10,10 +10,15 @@ import dieselService from '../../services/dailyEntryFormService';
 import authService from '../../services/authService';
 import vehicleService from '../../services/vechicleService';
 import employeeGlobalService from '../../services/employeeGlobalService';
+import { useRouter } from 'expo-router';
 
 export default function DieselForm() {
     const [form, setForm] = useState({
-        meterReading: '', fuelQuantity: '', vehicleNumber: '', vehicleType: '',
+        meterReading: '',
+        fuelQuantity: '',
+        vehicleNumber: '',
+        vehicleType: '',
+        reqTripCount: '', // 🆕 added
     });
     const [alert, setAlert] = useState({ visible: false, title: '', message: '' });
     const [errors, setErrors] = useState({});
@@ -29,11 +34,12 @@ export default function DieselForm() {
     const [mileage, setMileage] = useState(0);
     const [totalDistance, setTotalDistance] = useState(null);
     const [, setUsers] = useState([]);
+    const router = useRouter();
     useEffect(() => {
         fetchAllData();
     }, []);
 
-    const fetchAllData = async (date = null) => {
+    const fetchAllData = async () => {
         try {
             const allUsers = await authService.fetchAllUsers();
             const unique = Array.from(new Map(allUsers.data.map(u => [u.email, u])).values());
@@ -88,7 +94,6 @@ export default function DieselForm() {
                 setVehicleList(fetchedList);
             } catch (error) {
                 console.error('Failed to fetch vehicles:', error);
-
                 setVehicleList([]);
             }
         };
@@ -146,6 +151,10 @@ export default function DieselForm() {
             newErrors.vehicleType = 'Vehicle type is required';
             valid = false;
         }
+        if (!form.reqTripCount) {
+            newErrors.reqTripCount = 'Requested trip count is required';
+            valid = false;
+        }
         if (!selectedEmployee.email) {
             newErrors.employee = 'Select an employee';
             valid = false;
@@ -165,6 +174,7 @@ export default function DieselForm() {
             fuelQuantity: parseFloat(form.fuelQuantity),
             mileage,
             totalDistance,
+            reqTripCount: parseInt(form.reqTripCount),
             userEmail: selectedEmployee.email,
             createdAt: new Date().toISOString(),
         };
@@ -173,22 +183,35 @@ export default function DieselForm() {
             const { data, error } = await dieselService.createDailyEntry(payload);
             if (data) {
                 setAlert({ visible: true, title: 'Success', message: 'Diesel entry submitted successfully!' });
-            } else
-                if (error) {
-                    setLoading(false);
-                    setAlert({ visible: true, title: 'Error', message: error.message || 'Failed to submit diesel entry.' });
-                    return;
-                }
+            } else {
+                setLoading(false);
+                setAlert({ visible: true, title: 'Error', message: error.message || 'Failed to submit diesel entry.' });
+                return;
+            }
 
             const globalRes = await employeeGlobalService.createOrUpdateEntry(form, selectedEmployee, mileage);
 
             if (globalRes.error) {
-                setAlert({ visible: true, title: 'Warning', message: 'Diesel entry saved, but global tracking failed: ' + globalRes.error });
+                setAlert({
+                    visible: true,
+                    title: 'Warning',
+                    message: 'Diesel entry saved, but global tracking failed: ' + globalRes.error,
+                });
             } else {
-                setAlert({ visible: true, title: 'Success', message: 'Diesel entry and tracking updated successfully!' });
+                setAlert({
+                    visible: true,
+                    title: 'Success',
+                    message: 'Diesel entry and tracking updated successfully!',
+                });
             }
 
-            setForm({ meterReading: '', fuelQuantity: '', vehicleNumber: '', vehicleType: '' });
+            setForm({
+                meterReading: '',
+                fuelQuantity: '',
+                vehicleNumber: '',
+                vehicleType: '',
+                reqTripCount: '',
+            });
             setSelectedEmployee({ name: '', email: '' });
             setSearchQuery('');
             setEmployeeSearch('');
@@ -198,7 +221,6 @@ export default function DieselForm() {
             setLoading(false);
         }
     };
-
 
     return (
         <SafeAreaView className="flex-1 bg-white">
@@ -223,6 +245,16 @@ export default function DieselForm() {
                         className="mt-2 bg-white border border-gray-300 rounded-xl px-4 py-3 text-[#064e3b]"
                     />
                     {errors.fuelQuantity && <Text className="text-red-500 mt-1">{errors.fuelQuantity}</Text>}
+
+                    <Text className="text-[#064e3b] font-semibold text-base mt-4">Requested Trips Count</Text>
+                    <TextInput
+                        value={form.reqTripCount}
+                        onChangeText={(text) => handleChange('reqTripCount', text)}
+                        placeholder="e.g., 2"
+                        keyboardType="numeric"
+                        className="mt-2 bg-white border border-gray-300 rounded-xl px-4 py-3 text-[#064e3b]"
+                    />
+                    {errors.reqTripCount && <Text className="text-red-500 mt-1">{errors.reqTripCount}</Text>}
 
                     <Text className="text-[#064e3b] font-semibold text-base mt-4">Vehicle Number</Text>
                     <TouchableOpacity
@@ -303,6 +335,12 @@ export default function DieselForm() {
                     >
                         <Text className="text-white text-xl font-semibold">{loading ? 'Submitting...' : 'Submit'}</Text>
                     </TouchableOpacity>
+                    <TouchableOpacity onPress={() => router.replace('/(supervisortabs)/component/trip/tripcountscreen')} style={styles.btn}>
+                        <Text style={styles.btnText}>Trip Count</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => router.replace('/(supervisortabs)/component/complaintscreen')} style={styles.btn}>
+                        <Text style={styles.btnText}>Complaint</Text>
+                    </TouchableOpacity>
                 </ScrollView>
 
                 {/* Vehicle Modal */}
@@ -339,3 +377,35 @@ export default function DieselForm() {
         </SafeAreaView>
     );
 }
+
+const styles = {
+    container: { padding: 16, backgroundColor: '#f0fdf4' },
+    centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+    adminCard: { flexDirection: 'row', backgroundColor: '#fff', padding: 16, borderRadius: 12, alignItems: 'center', marginBottom: 16 },
+    initial: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#064e3b', color: '#fff', fontSize: 18, textAlign: 'center', textAlignVertical: 'center', marginRight: 12 },
+    adminLabel: { fontSize: 12, color: '#666' },
+    adminValue: { fontSize: 16, fontWeight: '600' },
+    sectionTitle: { fontWeight: '600', marginBottom: 6, color: '#064e3b' },
+    pickerBtn: { backgroundColor: '#fff', padding: 12, borderRadius: 8, borderWidth: 1, borderColor: '#ccc', marginBottom: 8 },
+    chip: { backgroundColor: '#064e3b', padding: 8, borderRadius: 16, margin: 4 },
+    chipText: { color: '#fff' },
+    modalContainer: { flex: 1, padding: 16, backgroundColor: '#f0fdf4' },
+    modalTitle: { fontSize: 20, fontWeight: 'bold', color: '#064e3b', marginBottom: 12 },
+    searchInput: { backgroundColor: '#fff', borderColor: '#ccc', borderWidth: 1, borderRadius: 8, padding: 10, marginBottom: 12 },
+    userItem: { padding: 12, borderRadius: 8, borderWidth: 1, borderColor: '#ccc', marginBottom: 8 },
+    userSelected: { backgroundColor: '#064e3b' },
+    closeBtn: { marginTop: 12, backgroundColor: '#dc2626', padding: 12, borderRadius: 8, alignItems: 'center' },
+    dateBtn: { backgroundColor: '#fff', padding: 10, borderRadius: 6, borderColor: '#ccc', borderWidth: 1, marginBottom: 8 },
+    btnRow: { marginTop: 20 },
+    btn: { backgroundColor: '#064e3b', padding: 14, borderRadius: 8, alignItems: 'center', marginBottom: 12 },
+    btnText: { color: '#fff', fontWeight: '600' },
+    sectionTitle2: { fontSize: 20, fontWeight: '600', color: '#064e3b', marginTop: 30, marginBottom: 14 },
+    searchBarContainer: { marginBottom: 12 },
+    searchBar: { backgroundColor: '#fff', borderColor: '#064e3b', borderWidth: 1.2, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 14, fontSize: 15, color: '#111' },
+    tableWrapper: { borderWidth: 1.5, borderColor: '#064e3b', borderRadius: 12, overflow: 'hidden', backgroundColor: '#fff' },
+    tableRowHeader: { flexDirection: 'row', backgroundColor: '#064e3b', paddingVertical: 10, paddingHorizontal: 10 },
+    tableRow: { flexDirection: 'row', paddingVertical: 12, paddingHorizontal: 10, borderBottomWidth: 1, borderColor: '#e0e0e0' },
+    tableCell: { fontSize: 14, color: '#064e3b' },
+    tableCell2: { fontSize: 14, color: '#fff' },
+    noTripsText: { padding: 14, textAlign: 'center', color: '#6b7280', fontStyle: 'italic' },
+};

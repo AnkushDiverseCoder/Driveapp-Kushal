@@ -65,6 +65,7 @@ const employeeGlobalService = {
                 fuelFilled: fuelQuantity,
                 mileage: parseInt(mileage),
                 notes: '',
+                reqTripCount:parseInt(form.reqTripCount),
                 userEmail: selectedEmployee.email,
                 vehicleNumber: form.vehicleNumber,
                 createdAt: new Date().toISOString(),

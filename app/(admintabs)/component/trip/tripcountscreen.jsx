@@ -27,7 +27,8 @@ export default function TripCountScreen() {
             const user = users.find(u => u.email === email);
             return user?.displayName?.toLowerCase().includes(tripSearch.toLowerCase());
         })
-        .sort((a, b) => b[1] - a[1]);
+        .sort((a, b) => (b[1]?.count || 0) - (a[1]?.count || 0)); // ✅ sort by count
+
 
     const fetchTripData = async (mode = 'today', date = null) => {
         setLoading(true);
@@ -59,12 +60,13 @@ export default function TripCountScreen() {
 
     const exportToExcel = async (filtered = false) => {
         try {
-            const exportData = (filtered ? filteredTripEntries.filter(([_, c]) => c >= 5) : Object.entries(tripCounts)).map(([email, count]) => {
+            const exportData = (filtered ? filteredTripEntries.filter(([_, c]) => c.count >= 5) : Object.entries(tripCounts)).map(([email, data]) => {
+
                 const user = users.find(u => u.email === email);
                 return {
                     Name: user?.displayName || 'Unknown',
                     Email: user?.email || 'N/A',
-                    Trips: count,
+                    Trips: data.count,
                 };
             });
 
@@ -168,20 +170,35 @@ export default function TripCountScreen() {
             ) : filteredTripEntries.length === 0 ? (
                 <Text className="text-center text-gray-500 mt-6">No trips found.</Text>
             ) : (
-                <FlatList
-                    data={filteredTripEntries}
-                    keyExtractor={([email]) => email}
-                    renderItem={({ item: [email, count], index }) => {
-                        const user = users.find(u => u.email === email);
-                        return (
-                            <View className={`flex-row justify-between items-center py-3 px-4 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-100'} rounded-lg mb-2`}>
-                                <Text className="text-[#064e3b] font-medium flex-1">{user?.displayName || 'Unknown'}</Text>
-                                <Text className="text-right text-[#064e3b] font-bold w-12">{count}</Text>
-                            </View>
-                        );
-                    }}
-                />
+                <>
+                    <View className="flex-row justify-between items-center px-4 pb-2">
+                        <Text className="text-[#064e3b] font-bold flex-1">Employee</Text>
+                        <Text className="text-[#064e3b] font-bold w-60 text-right">Completed / Required</Text>
+                    </View>
+
+
+                    <FlatList
+                        data={filteredTripEntries}
+                        keyExtractor={([email]) => email}
+                        renderItem={({ item: [email, data], index }) => {
+                            const user = users.find(u => u.email === email);
+                            const { count, reqTripCount } = data;
+                            const isMet = reqTripCount > 0 && count >= reqTripCount;
+
+                            return (
+                                <View className={`flex-row justify-between items-center py-3 px-4 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-100'} rounded-lg mb-2`}>
+                                    <Text className="text-[#064e3b] font-medium flex-1">{user?.displayName || 'Unknown'}</Text>
+                                    <Text className={`text-right font-bold w-40 ${isMet ? 'text-green-600' : 'text-red-600'}`}>
+                                        {count} / {reqTripCount || '—'}
+                                    </Text>
+                                </View>
+                            );
+                        }}
+                    />
+
+                </>
             )}
+
         </SafeAreaView>
     );
 }
