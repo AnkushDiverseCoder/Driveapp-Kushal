@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import {
     View, Text, TextInput, TouchableOpacity,
-    ScrollView, Modal, Alert, Platform, KeyboardAvoidingView
+    ScrollView, Modal, Platform, KeyboardAvoidingView
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
@@ -93,11 +93,6 @@ export default function TravelForm() {
             valid = false;
         }
 
-        if (!shiftHour || !shiftMinute) {
-            Alert.alert('Error', 'Please select a shift time');
-            valid = false;
-        }
-
         const start = parseFloat(form.startKm);
         if (isNaN(start) || start < 100) {
             newErrors.startKm = 'Start KM must be ≥ 100';
@@ -139,8 +134,6 @@ export default function TravelForm() {
             setAlert({ visible: true, title: 'Error', message: e.message });
         }
     };
-
-    const todayDate = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 
     return (
         <SafeAreaView style={{ flex: 1, backgroundColor: 'white' }}>

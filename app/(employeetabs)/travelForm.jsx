@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import {
     View, Text, TextInput, TouchableOpacity,
-    ScrollView, Modal, Alert, Platform, KeyboardAvoidingView
+    ScrollView, Modal, Platform, KeyboardAvoidingView
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
@@ -17,14 +17,12 @@ const tripMethods = ['pickup', 'drop'];
 
 export default function TravelForm() {
     const { user } = useAuth();
-
     const [form, setForm] = useState({
         siteName: '', tripMethod: '', tripId: '',
         vehicleNumber: '', startKm: '', escort: false,
     });
 
-    const [shiftHour, setShiftHour] = useState('');
-    const [shiftMinute, setShiftMinute] = useState('');
+    const [shiftTime, setShiftTime] = useState(null); // store full Date object
     const [shiftPickerVisible, setShiftPickerVisible] = useState(false);
 
     const [siteOptions, setSiteOptions] = useState([]);
@@ -65,13 +63,20 @@ export default function TravelForm() {
     };
 
     const handleShiftConfirm = (date) => {
-        console.log("Selected date:", date);
-        const hr = date.getHours() % 12 || 12;
-        const min = date.getMinutes();
-        console.log("Hour:", hr, "Minute:", min);
-        setShiftHour(String(hr));
-        setShiftMinute(String(min).padStart(2, '0'));
+        setShiftTime(date);
         setShiftPickerVisible(false);
+    };
+
+    const formatDateTime = (date) => {
+        if (!date) return null;
+        const pad = (n) => n.toString().padStart(2, '0');
+        const y = date.getFullYear();
+        const m = pad(date.getMonth() + 1);
+        const d = pad(date.getDate());
+        const h = pad(date.getHours());
+        const min = pad(date.getMinutes());
+        const s = '00';
+        return `${y}-${m}-${d} ${h}:${min}:${s}`;
     };
 
     const validate = () => {
@@ -95,11 +100,6 @@ export default function TravelForm() {
             valid = false;
         }
 
-        if (!shiftHour || !shiftMinute) {
-            Alert.alert('Error', 'Please select a shift time');
-            valid = false;
-        }
-
         const start = parseFloat(form.startKm);
         if (isNaN(start) || start < 100) {
             newErrors.startKm = 'Start KM must be ≥ 100';
@@ -118,7 +118,7 @@ export default function TravelForm() {
             startKm: parseFloat(form.startKm),
             endKm: 0,
             distanceTravelled: 0,
-            shiftTime: `${shiftHour}:${shiftMinute}`,
+            shiftTime: formatDateTime(shiftTime),
             userEmail: user.email,
             attached: false,
         };
@@ -133,16 +133,13 @@ export default function TravelForm() {
             } else {
                 setAlert({ visible: true, title: 'Success', message: 'Trip submitted successfully!' });
                 setForm({ siteName: '', tripMethod: '', tripId: '', vehicleNumber: '', startKm: '', escort: false });
-                setShiftHour('');
-                setShiftMinute('');
+                setShiftTime(null);
             }
         } catch (e) {
             setLoading(false);
             setAlert({ visible: true, title: 'Error', message: e.message });
         }
     };
-
-    const todayDate = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 
     return (
         <SafeAreaView style={{ flex: 1, backgroundColor: 'white' }}>
@@ -262,8 +259,11 @@ export default function TravelForm() {
                     {/* Shift Time */}
                     <Text style={{ color: 'black', fontWeight: 'bold', marginTop: 16 }}>Shift Time</Text>
                     <TouchableOpacity onPress={() => setShiftPickerVisible(true)} style={{ marginTop: 8, padding: 12, borderRadius: 8, borderWidth: 1, borderColor: '#ccc', backgroundColor: 'white' }}>
-                        <Text style={{ color: 'black', fontWeight: 'bold' }}>{shiftHour && shiftMinute ? `${shiftHour}:${shiftMinute}` : 'Select shift time'}</Text>
+                        <Text style={{ color: 'black', fontWeight: 'bold' }}>
+                            {shiftTime ? formatDateTime(shiftTime).slice(11, 16) : 'Select shift time'}
+                        </Text>
                     </TouchableOpacity>
+                    {errors.shiftTime && <Text style={{ color: 'red' }}>{errors.shiftTime}</Text>}
                     <DateTimePickerModal
                         isVisible={shiftPickerVisible}
                         mode="time"

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
     View, Text, FlatList, TouchableOpacity, Alert,
     TextInput, ScrollView, Platform
@@ -24,48 +24,7 @@ export default function AdminDieselTrackingScreen() {
     const [showStartPicker, setShowStartPicker] = useState(false);
     const [showEndPicker, setShowEndPicker] = useState(false);
 
-const fetchUsersAndData = React.useCallback(async () => {
-    try {
-        const res = await authService.fetchAllUsers();
-        const unique = Array.from(new Map(res.data.map(u => [u.email, u])).values());
-        setUsers(unique);
-
-        if (activeTab === 'daily') {
-            // Get today's date range
-            const now = new Date();
-            const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
-            const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).toISOString();
-
-            // Fetch today's entries
-            const res = await employeeGlobalService.listEntries([
-                Query.greaterThanEqual('createdAt', startOfDay),
-                Query.lessThanEqual('createdAt', endOfDay),
-            ]);
-
-            const latestEntries = {};
-
-            for (const entry of res.data.data) {
-                const email = entry.userEmail.toLowerCase();
-                if (!latestEntries[email] || new Date(entry.createdAt) > new Date(latestEntries[email].createdAt)) {
-                    latestEntries[email] = entry;
-                }
-            }
-
-            setAllEntries(Object.values(latestEntries));
-        } else {
-            fetchMonthlyEntries();
-        }
-    } catch (err) {
-        Alert.alert('Error', 'Failed to load data',err);
-    }
-}, [activeTab,fetchMonthlyEntries]);
-
-useEffect(() => {
-    fetchUsersAndData();
-}, [activeTab, fetchUsersAndData]);
-
-
-    const fetchMonthlyEntries = React.useCallback(async () => {
+    const fetchMonthlyEntries = useCallback(async () => {
         try {
             const res = await employeeGlobalService.listEntries([]);
             let filtered = res.data.data;
@@ -79,26 +38,65 @@ useEffect(() => {
 
             if (vehicleFilter) {
                 filtered = filtered.filter(entry =>
-                    entry.vehicleNumber.toLowerCase().includes(vehicleFilter.toLowerCase())
+                    entry.vehicleNumber?.toLowerCase().includes(vehicleFilter.toLowerCase())
                 );
             }
 
-            const sorted = filtered.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-            setAllEntries(sorted);
-        } catch (_err) {
+            setAllEntries(filtered.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
+        } catch (err) {
             Alert.alert('Error', 'Failed to load monthly data');
         }
     }, [startDate, endDate, vehicleFilter]);
 
-    const filteredEntries = allEntries.filter(entry => {
-        if (!employeeSearch) return true;
-        const user = users.find(u => u.email.toLowerCase() === entry.userEmail.toLowerCase());
-        return user?.displayName?.toLowerCase().includes(employeeSearch.toLowerCase());
-    });
+    const fetchUsersAndData = useCallback(async () => {
+        try {
+            const res = await authService.fetchAllUsers();
+            const unique = Array.from(new Map(res.data.map(u => [u.email, u])).values());
+            setUsers(unique);
 
-    const getDisplayName = (email) => {
-        return users.find(u => u.email.toLowerCase() === email.toLowerCase())?.displayName || 'Unknown';
-    };
+            if (activeTab === 'daily') {
+                const now = new Date();
+                const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+                const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).toISOString();
+
+                const res = await employeeGlobalService.listEntries([
+                    Query.greaterThanEqual('createdAt', startOfDay),
+                    Query.lessThanEqual('createdAt', endOfDay),
+                ]);
+
+                const latestEntries = {};
+
+                for (const entry of res.data.data) {
+                    const email = entry.userEmail.toLowerCase();
+                    if (!latestEntries[email] || new Date(entry.createdAt) > new Date(latestEntries[email].createdAt)) {
+                        latestEntries[email] = entry;
+                    }
+                }
+
+                setAllEntries(Object.values(latestEntries));
+            } else {
+                fetchMonthlyEntries();
+            }
+        } catch (err) {
+            Alert.alert('Error', 'Failed to load data');
+        }
+    }, [activeTab, fetchMonthlyEntries]);
+
+    useEffect(() => {
+        fetchUsersAndData();
+    }, [activeTab, fetchUsersAndData]);
+
+    const getDisplayName = (email) =>
+        users.find(u => u.email.toLowerCase() === email.toLowerCase())?.displayName || 'Unknown';
+
+    const filteredEntries = allEntries.filter(entry => {
+        const user = users.find(u => u.email.toLowerCase() === entry.userEmail.toLowerCase());
+        const matchesName = employeeSearch
+            ? user?.displayName?.toLowerCase().includes(employeeSearch.toLowerCase())
+            : true;
+
+        return matchesName;
+    });
 
     const exportToExcel = () => {
         if (!filteredEntries.length) {
@@ -112,6 +110,7 @@ useEffect(() => {
             'Prev KM': entry.previousMeterReading,
             'User': getDisplayName(entry.userEmail),
             'Diesel': entry.fuelFilled,
+            'Meter': entry.meterReading,
             'Remaining': entry.remainingDistance
         }));
 
@@ -204,13 +203,13 @@ useEffect(() => {
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                 <View className="min-w-[800px]">
                     <View className="flex-row bg-[#064e3b] py-2 px-2 rounded-t-lg">
-                        <Text className="w-[10%] text-xs font-bold text-center text-white">User</Text>
-                        <Text className="w-[10%] text-xs font-bold text-center text-white">Date</Text>
-                        <Text className="w-[15%] text-xs font-bold text-center text-white">Vehicle</Text>
-                        <Text className="w-[15%] text-xs font-bold text-center text-white">Prev KM</Text>
-                        <Text className="w-[10%] text-xs font-bold text-center text-white">Fuel</Text>
-                        <Text className="w-[10%] text-xs font-bold text-center text-white">KM</Text>
-                        <Text className="w-[10%] text-xs font-bold text-center text-white">Remain</Text>
+                        {['User', 'Date', 'Vehicle', 'Prev KM', 'Fuel', 'Meter', 'Remain'].map((label, i) => (
+                            <Text
+                                key={i}
+                                className={`w-[${i === 2 ? '15%' : '10%'}] text-xs font-bold text-center text-white`}>
+                                {label}
+                            </Text>
+                        ))}
                     </View>
 
                     <FlatList
@@ -221,7 +220,7 @@ useEffect(() => {
                                 <Text className="w-[10%] text-xs text-center">{getDisplayName(item.userEmail)}</Text>
                                 <Text className="w-[10%] text-xs text-center">{new Date(item.createdAt).toLocaleDateString()}</Text>
                                 <Text className="w-[15%] text-xs text-center">{item.vehicleNumber}</Text>
-                                <Text className="w-[15%] text-xs text-center">{item.previousMeterReading}</Text>
+                                <Text className="w-[10%] text-xs text-center">{item.previousMeterReading}</Text>
                                 <Text className="w-[10%] text-xs text-center">{item.fuelFilled}</Text>
                                 <Text className="w-[10%] text-xs text-center">{item.meterReading}</Text>
                                 <Text className={`w-[10%] text-xs text-center font-bold ${item.remainingDistance < 30 ? 'text-red-500' : 'text-green-600'}`}>
@@ -234,7 +233,9 @@ useEffect(() => {
             </ScrollView>
 
             <TouchableOpacity onPress={exportToExcel} className="bg-[#064e3b] px-4 py-3 mt-4 rounded-xl">
-                <Text className="text-white text-center font-semibold text-sm">Export {activeTab === 'daily' ? 'Daily' : 'Monthly'} Report</Text>
+                <Text className="text-white text-center font-semibold text-sm">
+                    Export {activeTab === 'daily' ? 'Daily' : 'Monthly'} Report
+                </Text>
             </TouchableOpacity>
         </SafeAreaView>
     );

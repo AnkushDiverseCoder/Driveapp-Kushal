@@ -20,7 +20,7 @@ export default function LoginScreen() {
     const [inputErrors, setInputErrors] = useState({});
     const [loginError, setLoginError] = useState(null); // 🔹 New state
 
-    const { login, loading } = useAuth();
+    const { login, loading ,error} = useAuth();
     const router = useRouter();
 
     const validateInputs = () => {
@@ -59,6 +59,7 @@ export default function LoginScreen() {
                         break;
                 }
             } else {
+            console.log(result)
                 setLoginError(result?.error || 'Login failed. Please try again.'); // 🔹 Show returned error
             }
         } catch (err) {
@@ -188,7 +189,7 @@ export default function LoginScreen() {
 
                 {loginError && (
                     <Text style={{ color: 'red', marginTop: 10, textAlign: 'center' }}>
-                        {loginError}
+                        {error || loginError}
                     </Text>
                 )}
 

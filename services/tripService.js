@@ -141,17 +141,21 @@ const tripService = {
 
         if (mode === "month") {
             const date = dateParam ? new Date(dateParam) : new Date();
-            start = new Date(date.getFullYear(), date.getMonth(), 1);
-            end = new Date(start);
-            end.setMonth(end.getMonth() + 1);
+            start = new Date(date.getFullYear(), date.getMonth(), 1, 7, 0, 0, 0); // Month start at 7:00 AM
+            end = new Date(date.getFullYear(), date.getMonth() + 1, 1, 6, 59, 59, 999); // Month end at 6:59 AM of next month
         } else {
-            const now = dateParam ? new Date(dateParam) : new Date();
-            start = new Date(now);
-            start.setHours(6, 58, 0, 0);
-            if (now < start) start.setDate(start.getDate() - 1);
-            end = new Date(start);
-            end.setDate(start.getDate() + 1);
-            end.setHours(6, 57, 59, 999);
+            const reference = dateParam ? new Date(dateParam) : new Date();
+            const dayStart = new Date(reference.getFullYear(), reference.getMonth(), reference.getDate(), 7, 0, 0, 0);
+
+            // If before 7:00 AM, count it as previous day
+            if (reference < dayStart) {
+                dayStart.setDate(dayStart.getDate() - 1);
+            }
+
+            start = new Date(dayStart);
+            end = new Date(dayStart);
+            end.setDate(end.getDate() + 1);
+            end.setHours(6, 59, 59, 999);
         }
 
         const tripRes = await databaseService.listAllDocuments(dbId, colId, [
@@ -168,17 +172,21 @@ const tripService = {
             tripCounts[email] = (tripCounts[email] || 0) + 1;
         });
 
-        // Get latest reqTripCount for each user
         const globalRes = await employeeGlobalService.listEntries([
             Query.greaterThanEqual('createdAt', start.toISOString()),
             Query.lessThan('createdAt', end.toISOString()),
         ]);
+
         if (!globalRes.success) return { error: globalRes.error };
+
         const latestReqMap = {};
         for (const entry of globalRes.data.data) {
             const email = entry.userEmail?.toLowerCase?.();
             if (!email) continue;
-            if (!latestReqMap[email] || new Date(entry.createdAt) > new Date(latestReqMap[email].createdAt)) {
+            if (
+                !latestReqMap[email] ||
+                new Date(entry.createdAt) > new Date(latestReqMap[email].createdAt)
+            ) {
                 latestReqMap[email] = entry;
             }
         }
@@ -191,7 +199,7 @@ const tripService = {
             };
         }
 
-        // Also include users who have reqTripCount but no trips
+        // Include users with reqTripCount but no trips
         for (const email of Object.keys(latestReqMap)) {
             if (!result[email]) {
                 result[email] = {
