@@ -136,6 +136,32 @@ const tripService = {
         return { data: trip };
     },
 
+    async getEmployeeIncompleteStatus(email) {
+        const today = new Date();
+        const todayStr = today.toISOString().split('T')[0];
+
+        const [dailyRes, monthlyRes] = await Promise.all([
+            this.fetchUserTripCounts('today', todayStr),
+            this.fetchUserTripCounts('month'),
+        ]);
+        if (dailyRes.error || monthlyRes.error) {
+            return { error: dailyRes.error || monthlyRes.error };
+        }
+
+        const daily = dailyRes.data?.[email.toLowerCase()];
+        const monthly = monthlyRes.data?.[email.toLowerCase()];
+
+        return {
+            data: {
+                dailyIncomplete:
+                    !daily || daily.count < daily.reqTripCount,
+                monthlyIncomplete:
+                    !monthly || monthly.count < monthly.reqTripCount,
+                daily: daily || { count: 0, reqTripCount: 0 },
+                monthly: monthly || { count: 0, reqTripCount: 0 },
+            },
+        };
+    },
     async fetchUserTripCounts(mode = 'today', dateParam = null) {
         let start, end;
 

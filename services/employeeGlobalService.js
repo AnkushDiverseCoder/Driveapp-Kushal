@@ -44,8 +44,7 @@ const employeeGlobalService = {
                 Query.orderDesc('createdAt'),
                 Query.limit(1),
             ]);
-
-            const prev = prevRes?.data?.documents?.[0];
+            const prev = prevRes?.data?.data?.[0];
             const isFirstEntry = !prev;
             const previousMeterReading = prev?.meterReading || 0;
             const previousRemaining = prev?.remainingDistance || 0;
@@ -55,7 +54,7 @@ const employeeGlobalService = {
             // ✅ Fixed logic for remainingDistance
             const remainingDistance = isFirstEntry
                 ? totalDistance
-                : previousRemaining - runningKm + totalDistance;
+                : (previousRemaining - runningKm) + totalDistance;
 
             const payload = {
                 meterReading: currentMeter,
@@ -97,7 +96,7 @@ const employeeGlobalService = {
 
             const res = await this.listEntries(queries);
 
-            const entries = res?.data?.documents || [];
+            const entries = res?.data?.data || [];
 
             if (entries.length === 0) {
                 return { success: true, totalDistance: 0, averageMileage: 0, entryCount: 0 };
@@ -131,7 +130,7 @@ const employeeGlobalService = {
             if (to) queries.push(Query.lessThanEqual('createdAt', new Date(to).toISOString()));
 
             const res = await this.listEntries(queries);
-            const entries = res?.data?.documents || [];
+            const entries = res?.data?.data || [];
 
             if (entries.length === 0) {
                 return { success: true, data: [] };

@@ -38,6 +38,7 @@ export default function Home() {
     const [loading, setLoading] = useState(true);
     const [selectedDate, setSelectedDate] = useState(new Date());
     const [isDatePickerVisible, setDatePickerVisibility] = useState(false);
+    const [incompleteStatus, setIncompleteStatus] = useState(null);
 
     const [balanceKm, setBalanceKm] = useState(null);
     const [currentMeterInput, setCurrentMeterInput] = useState('');
@@ -61,20 +62,20 @@ export default function Home() {
     const fetchProfile = async (date) => {
         try {
             setLoading(true);
-            const currentUser  = await authService.getCurrentUser ();
-            if (!currentUser ?.email) return;
+            const currentUser = await authService.getCurrentUser();
+            if (!currentUser?.email) return;
 
             const today = new Date();
 
             const entryList = await dailyEntryFormService.listDailyEntry();
             const foundTodayEntry = entryList?.data?.documents?.find((entry) => {
                 const entryDate = new Date(entry.$createdAt);
-                return isSameDay(today, entryDate) && entry.userEmail === currentUser .email;
+                return isSameDay(today, entryDate) && entry.userEmail === currentUser.email;
             });
             setDailyEntryDone(!!foundTodayEntry);
 
             const tripResult = await tripService.fetchTripsByDate(
-                currentUser .email,
+                currentUser.email,
                 date.toISOString().split('T')[0]
             );
 
@@ -83,11 +84,11 @@ export default function Home() {
             }
 
             const globalEntryRes = await employeeGlobalService.listEntries([
-                Query.equal('userEmail', [currentUser .email.toLowerCase()]),
+                Query.equal('userEmail', [currentUser.email.toLowerCase()]),
                 Query.orderDesc('createdAt'),
                 Query.limit(1)
             ]);
-            
+
             const latestGlobalEntry = globalEntryRes?.data?.data?.[0];
             const latestRemainingKm = latestGlobalEntry?.remainingDistance;
             const latestMeter = latestGlobalEntry?.meterReading;
@@ -95,10 +96,18 @@ export default function Home() {
             setBalanceKm(latestRemainingKm ?? null);
             setLatestMeterReading(latestMeter ?? null);
 
-            const monthlyCountRes = await tripService.fetchMonthlyTripCount(currentUser .email);
+            const monthlyCountRes = await tripService.fetchMonthlyTripCount(currentUser.email);
             if (!monthlyCountRes.error) {
                 setMonthlyTripCount(monthlyCountRes.data);
             }
+
+            const incompleteRes = await tripService.getEmployeeIncompleteStatus(currentUser.email);
+            console.log('Incomplete Status:', incompleteRes.data);
+            if (!incompleteRes.error) {
+                setIncompleteStatus(incompleteRes.data);
+            }
+
+
         } catch (err) {
             console.error('Error loading profile:', err);
         } finally {
@@ -118,7 +127,7 @@ export default function Home() {
             Alert.alert('Invalid Input', 'Please enter a valid meter reading.');
             return;
         }
-        
+
         if (latestMeterReading === null || balanceKm === null) {
             Alert.alert('Data Missing', 'Could not fetch latest meter reading data.');
             return;
@@ -126,7 +135,7 @@ export default function Home() {
 
         const totalAvailableKm = parseFloat(latestMeterReading) + parseFloat(balanceKm);
         const diff = totalAvailableKm - meterValue;
-        
+
         if (diff < 0) {
             Alert.alert('Warning', 'The meter reading exceeds the available kilometers.');
         }
@@ -174,6 +183,27 @@ export default function Home() {
                 </View>
             </View>
 
+            {incompleteStatus && (
+                <View className="bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3 mb-4">
+                    {incompleteStatus.dailyIncomplete && (
+                        <Text className="text-sm text-yellow-800">
+                            ⚠️ You haven’t completed today’s required trips ({incompleteStatus.daily.count}/{incompleteStatus.daily.reqTripCount})
+                        </Text>
+                    )}
+                    {incompleteStatus.monthlyIncomplete && (
+                        <Text className="text-sm text-yellow-800 mt-1">
+                            📅 This month’s trips are also incomplete ({incompleteStatus.monthly.count}/{incompleteStatus.monthly.reqTripCount})
+                        </Text>
+                    )}
+                    {!incompleteStatus.dailyIncomplete && !incompleteStatus.monthlyIncomplete && (
+                        <Text className="text-sm text-green-700">
+                            ✅ You have completed both daily and monthly required trips.
+                        </Text>
+                    )}
+                </View>
+            )}
+
+
             <View className="bg-white rounded-2xl p-5 shadow-sm border border-gray-200 mb-6">
                 <Text className="text-lg font-semibold text-gray-800 mb-4">Monthly Trip Summary</Text>
                 <View className="flex-row flex-wrap justify-between">
@@ -204,7 +234,7 @@ export default function Home() {
                         onChangeText={setCurrentMeterInput}
                         className="border border-gray-300 rounded-md px-3 py-2 mb-2 text-gray-800 bg-white"
                     />
-                    <TouchableOpacity 
+                    <TouchableOpacity
                         onPress={handleMeterInput}
                         className="bg-blue-500 py-2 rounded-md mb-2"
                     >
