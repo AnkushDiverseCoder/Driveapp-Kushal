@@ -14,17 +14,18 @@ export const AuthProvider = ({ children }) => {
         try {
             const userData = await authService.getCurrentUser();
             console.log('Current user data:', userData);
-            if (userData.error) {
-                // User is not logged in or no permission, clear user state
+            if (!userData || userData.error) {
                 setUser(null);
                 setError(null);
+                return null;
             } else {
                 setUser(userData);
-                return userData; // Return user data for further processing if needed
+                return userData;
             }
         } catch (err) {
-            setError(err.message || 'Failed to fetch user data. Please try again.');
             setUser(null);
+            setError(err.message || 'Failed to fetch user data. Please try again.');
+            return null;
         } finally {
             setLoading(false);
         }
@@ -44,14 +45,15 @@ export const AuthProvider = ({ children }) => {
                 setError(response.error);
                 return { success: false };
             }
-            // After login, fetch user info with labels etc.
+
             const currentUser = await fetchCurrentUser();
-            if (currentUser.error) {
-                setError(currentUser.error);
+            if (!currentUser || currentUser.error) {
+                setError(currentUser?.error || 'Failed to fetch user after login.');
                 return { success: false };
             }
+
             setUser(currentUser);
-            return { success: true, user: currentUser }; // <-- return user object with labels
+            return { success: true, user: currentUser };
         } catch (err) {
             setError(err.message || 'Login failed. Please check your email and password.');
             return { success: false };
@@ -59,7 +61,6 @@ export const AuthProvider = ({ children }) => {
             setLoading(false);
         }
     };
-
 
     const logout = async () => {
         setLoading(true);
@@ -79,16 +80,16 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
-    const register = async (username,email,password,label) => {
+    const register = async (username, email, password, label) => {
         setLoading(true);
         setError(null);
         try {
-            const response = await authService.register(username, email, password,label);
+            const response = await authService.register(username, email, password, label);
             if (response.error) {
                 setError(response.error);
                 return { success: false };
             }
-            // After registration, user might still need to login or fetch user
+            // Optional: Automatically login after registration?
             await fetchCurrentUser();
             return { success: true };
         } catch (err) {

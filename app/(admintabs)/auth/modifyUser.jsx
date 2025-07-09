@@ -79,7 +79,7 @@ const ModifyUser = () => {
     useEffect(() => {
         setOffset(0);
         fetchUsers(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [searchQuery, sortOrder]);
 
     const openModal = (user) => {
@@ -176,11 +176,9 @@ const ModifyUser = () => {
                         ['Name', user.username],
                         ['Display Name', user.displayName],
                         ['Labels', (user.labels || []).join(', ')],
+                        ['Password', user.password],  // 👈 New row
                     ].map(([label, value], i) => (
-                        <View
-                            key={i}
-                            className="w-[48%] mb-3 bg-gray-50 px-3 py-2 rounded-md"
-                        >
+                        <View key={i} className="w-[48%] mb-3 bg-gray-50 px-3 py-2 rounded-md">
                             <Text className="text-xs text-gray-500">{label}</Text>
                             <Text className="text-sm font-medium text-gray-800">{value}</Text>
                         </View>
@@ -322,14 +320,14 @@ const ModifyUser = () => {
                                             key={label}
                                             onPress={() => setForm({ ...form, labels: label })}
                                             className={`px-4 py-2 rounded-full border ${form.labels === label
-                                                    ? 'bg-[#064e3b] border-[#064e3b]'
-                                                    : 'bg-gray-100 border-gray-300'
+                                                ? 'bg-[#064e3b] border-[#064e3b]'
+                                                : 'bg-gray-100 border-gray-300'
                                                 }`}
                                         >
                                             <Text
                                                 className={`${form.labels === label
-                                                        ? 'text-white font-medium'
-                                                        : 'text-gray-700'
+                                                    ? 'text-white font-medium'
+                                                    : 'text-gray-700'
                                                     }`}
                                             >
                                                 {label.charAt(0).toUpperCase() + label.slice(1)}

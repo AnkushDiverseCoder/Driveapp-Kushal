@@ -1,6 +1,6 @@
 // services/authService.js
 
-import { account } from './appwrite';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import databaseService from './databaseService';
 import { ID, Query } from 'react-native-appwrite';
 
@@ -8,33 +8,30 @@ const DATABASE_ID = process.env.EXPO_PUBLIC_APPWRITE_DB_ID;
 const USERS_COLLECTION_ID = process.env.EXPO_PUBLIC_APPWRITE_COL_USERS;
 const VALID_LABELS = ['admin', 'employee', 'supervisor'];
 
+const SESSION_KEY = 'currentUser';
+const PASSWORD_RESET_DEFAULT = "123456789"
+
 const authService = {
-    async register(username, email, password, labels, displayName = '') {
+    async register(username, email, password, labels = [], displayName = '') {
         if (!Array.isArray(labels)) {
             return { error: 'Labels must be an array.' };
         }
 
         try {
-            const accountResponse = await account.create(
-                ID.unique(),
-                email,
-                password,
-                displayName || username
-            );
-
-            await databaseService.createDocument(
+            const userDoc = await databaseService.createDocument(
                 DATABASE_ID,
                 USERS_COLLECTION_ID,
                 ID.unique(),
                 {
                     username,
                     email,
+                    password,
                     labels: labels.length ? labels : ['employee'],
                     displayName: displayName || username,
                 }
             );
 
-            return { success: true, data: accountResponse };
+            return { success: true, data: userDoc };
         } catch (error) {
             return { error: error.message || 'Registration failed.' };
         }
@@ -53,17 +50,20 @@ const authService = {
             }
 
             const userDoc = result.documents[0];
-            const email = userDoc.email;
-            if (!email) return { error: 'Email not found for this user.' };
 
-            const session = await account.createEmailPasswordSession(email, password);
+            if (!userDoc.password || userDoc.password !== password) {
+                return { error: 'Invalid password.' };
+            }
+
+            // Save to AsyncStorage
+            await AsyncStorage.setItem(SESSION_KEY, JSON.stringify(userDoc));
 
             return {
                 success: true,
-                data: session,
+                data: userDoc,
                 labels: Array.isArray(userDoc.labels) ? userDoc.labels : [],
                 username: userDoc.username,
-                displayName: userDoc.displayName
+                displayName: userDoc.displayName,
             };
         } catch (error) {
             return { error: error.message || 'Login failed. Please check your credentials.' };
@@ -72,51 +72,65 @@ const authService = {
 
     async getCurrentUser() {
         try {
-            const userAccount = await account.get();
+            const userStr = await AsyncStorage.getItem(SESSION_KEY);
+            if (!userStr) return null;
 
-            const userMeta = await databaseService.listDocuments(
-                DATABASE_ID,
-                USERS_COLLECTION_ID,
-                [Query.equal('email', userAccount.email)]
-            );
-
-            const userDoc = userMeta?.documents?.[0];
-
-            return {
-                ...userAccount,
-                labels: Array.isArray(userDoc?.labels) ? userDoc.labels : [],
-                username: userDoc?.username || userAccount.name,
-                displayName: userDoc?.displayName || userAccount.name,
-            };
+            const user = JSON.parse(userStr);
+            return user;
         } catch (error) {
-            return { error: error.message || 'Failed to fetch user data.' };
+            return { error: 'Failed to retrieve session.' + error.message };
         }
     },
 
     async logout() {
         try {
-            await account.deleteSession('current');
+            await AsyncStorage.removeItem(SESSION_KEY);
             return { success: true };
         } catch (error) {
-            return { error: error.message || 'Logout failed.' };
-        }
-    },
-    
-    async getActiveSessions() {
-        try {
-            const sessions = await account.listSessions();
-            return { success: true, data: sessions.sessions };
-        } catch (error) {
-            return { error: error.message || 'Failed to fetch active sessions.' };
+            return { error: 'Logout failed.' + error.message };
         }
     },
 
-    async changePassword(newPassword, oldPassword) {
+    async changePassword(documentId, newPassword) {
         try {
-            await account.updatePassword(newPassword, oldPassword);
-            return { success: true };
+            if (!newPassword?.trim() || newPassword.trim().length < 6) {
+                return { error: 'Password must be at least 6 characters.' };
+            }
+
+            const updated = await databaseService.updateDocument(
+                DATABASE_ID,
+                USERS_COLLECTION_ID,
+                documentId,
+                { password: newPassword.trim() }
+            );
+
+            return { success: true, data: updated };
         } catch (error) {
             return { error: error.message || 'Failed to update password.' };
+        }
+    },
+    async resetAllUserPasswords(newPassword = '123456789') {
+        try {
+            const result = await databaseService.listAllDocuments(DATABASE_ID, USERS_COLLECTION_ID);
+
+            if (result?.error) {
+                return { success: false, error: result.error };
+            }
+
+            const updates = result.data.map((user) =>
+                databaseService.updateDocument(DATABASE_ID, USERS_COLLECTION_ID, user.$id, {
+                    password: newPassword,
+                })
+            );
+
+            await Promise.all(updates);
+
+            return { success: true };
+        } catch (error) {
+            return {
+                success: false,
+                error: error.message || 'Failed to reset passwords.',
+            };
         }
     },
 
@@ -127,14 +141,12 @@ const authService = {
                 displayName,
                 email,
                 labels,
-                currentPassword,
-                newPassword,
-                skipPasswordUpdate = false,
+                newPassword
             } = updates;
 
-            const updatePromises = [];
+            const updateFields = {};
 
-            // Check for duplicate username
+            // Check for duplicates
             if (username) {
                 const existing = await databaseService.listDocuments(DATABASE_ID, USERS_COLLECTION_ID, [
                     Query.equal('username', username),
@@ -142,9 +154,9 @@ const authService = {
                 if (existing.documents.length && existing.documents[0].$id !== documentId) {
                     return { success: false, error: 'Username already exists.' };
                 }
+                updateFields.username = username;
             }
 
-            // Check for duplicate email
             if (email) {
                 const existing = await databaseService.listDocuments(DATABASE_ID, USERS_COLLECTION_ID, [
                     Query.equal('email', email),
@@ -152,63 +164,30 @@ const authService = {
                 if (existing.documents.length && existing.documents[0].$id !== documentId) {
                     return { success: false, error: 'Email already exists.' };
                 }
+                updateFields.email = email;
             }
 
-            // Self-update only (requires session)
-            if ((displayName || username) && currentPassword?.trim()) {
-                const newName = displayName || username;
-                updatePromises.push(account.updateName(newName));
+            if (displayName) updateFields.displayName = displayName;
+            if (labels && VALID_LABELS.includes(labels)) updateFields.labels = [labels];
+            if (newPassword?.trim()) updateFields.password = newPassword.trim();
+
+            if (Object.keys(updateFields).length === 0) {
+                return { success: false, error: 'No updates provided.' };
             }
 
-            if (email && currentPassword?.trim()) {
-                updatePromises.push(account.updateEmail(email, currentPassword.trim()));
-            }
+            const updatedDoc = await databaseService.updateDocument(
+                DATABASE_ID,
+                USERS_COLLECTION_ID,
+                documentId,
+                updateFields
+            );
 
-            if (
-                newPassword?.trim() &&
-                newPassword.trim().length >= 6 &&
-                currentPassword?.trim() &&
-                !skipPasswordUpdate
-            ) {
-                updatePromises.push(account.updatePassword(newPassword.trim(), currentPassword.trim()));
-            }
-
-            if (updatePromises.length) {
-                await Promise.all(updatePromises);
-            }
-
-            const docUpdates = {};
-            if (username) docUpdates.username = username;
-            if (displayName) docUpdates.displayName = displayName;
-            if (email) docUpdates.email = email;
-            if (labels && VALID_LABELS.includes(labels)) {
-                docUpdates.labels = [labels];
-            }
-
-            // Admin manual password update (stored in DB only)
-            if (newPassword?.trim() && skipPasswordUpdate) {
-                docUpdates.password = newPassword.trim(); // Note: Only valid if you're not using Appwrite Auth
-            }
-
-            let updatedDoc = null;
-            if (Object.keys(docUpdates).length > 0) {
-                updatedDoc = await databaseService.updateDocument(
-                    DATABASE_ID,
-                    USERS_COLLECTION_ID,
-                    documentId,
-                    docUpdates
-                );
-            }
-
-            return { success: true, data: updatedDoc || null };
+            return { success: true, data: updatedDoc };
         } catch (error) {
-            console.error('Update error:', error);
-            return {
-                success: false,
-                error: error?.message || 'Failed to update user.'
-            };
+            return { success: false, error: error?.message || 'Failed to update user.' };
         }
     },
+
     async deleteUserById(documentId) {
         try {
             await databaseService.deleteDocument(DATABASE_ID, USERS_COLLECTION_ID, documentId);
@@ -234,13 +213,11 @@ const authService = {
         try {
             const res = await databaseService.listDocuments(DATABASE_ID, USERS_COLLECTION_ID, [
                 ...queries,
-                // Ensure limits and offset are included even if not passed
                 ...(queries.find(q => q?.method === 'limit') ? [] : [Query.limit(limit)]),
                 ...(queries.find(q => q?.method === 'offset') ? [] : [Query.offset(offset)])
             ]);
             return { success: true, data: res.documents };
         } catch (error) {
-            console.error('Error fetching users:', error.message);
             return { success: false, error: error.message };
         }
     },
