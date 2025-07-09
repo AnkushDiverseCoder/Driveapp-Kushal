@@ -15,7 +15,8 @@ import tripService from '../../services/tripService';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../context/AuthContext';
 import employeeGlobalService from '../../services/employeeGlobalService';
-import { Query } from 'react-native-appwrite';
+import { Query } from 'react-native-appwrite'
+import transactionService from '../../services/transactionService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const ACCENT_COLOR = '#064e3b';
@@ -41,6 +42,7 @@ export default function Home() {
     const [incompleteStatus, setIncompleteStatus] = useState(null);
 
     const [balanceKm, setBalanceKm] = useState(null);
+    const [runningBalance, setRunningBalance] = useState(null);
     const [currentMeterInput, setCurrentMeterInput] = useState('');
     const [remainingAfterInput, setRemainingAfterInput] = useState(null);
     const [latestMeterReading, setLatestMeterReading] = useState(null);
@@ -106,6 +108,12 @@ export default function Home() {
             if (!incompleteRes.error) {
                 setIncompleteStatus(incompleteRes.data);
             }
+
+            const balanceRes = await transactionService.getUserBalanceSummary(currentUser.email);
+            if (!balanceRes.error) {
+                setRunningBalance(balanceRes.data.balance);
+            }
+
 
 
         } catch (err) {
@@ -215,6 +223,12 @@ export default function Home() {
                         <Text className="text-xs text-gray-500 mb-1">Todays Remaining KM</Text>
                         <Text className="text-xl font-bold text-[#064e3b]">
                             {balanceKm !== null ? `${balanceKm} km` : 'N/A'}
+                        </Text>
+                    </View>
+                    <View className="w-full bg-gray-50 px-4 py-4 rounded-xl mb-6 border border-gray-200 shadow-sm">
+                        <Text className="text-xs text-gray-500 mb-1">Your Current Balance</Text>
+                        <Text className="text-2xl font-bold text-[#064e3b]">
+                            ₹ {runningBalance !== null ? runningBalance.toFixed(2) : 'Loading...'}
                         </Text>
                     </View>
                 </View>

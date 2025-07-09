@@ -144,13 +144,13 @@ const transactionService = {
 
         try {
             const result = await withTimeout(
-                databaseService.listDocuments(
+                databaseService.listAllDocuments(
                     DATABASE_ID,
                     TRANSACTION_COLLECTION_ID,
                     [Query.equal('userEmail', userEmail)]
                 )
             );
-            return { success: true, data: result.documents };
+            return { success: true, data: result.data };
         } catch (error) {
             return {
                 success: false,
@@ -305,6 +305,7 @@ const transactionService = {
             };
         }
     },
+
 };
 
 export default transactionService;
