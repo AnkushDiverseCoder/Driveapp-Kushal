@@ -107,6 +107,7 @@ export default function TripDetails() {
                 d.username?.toLowerCase().includes(q) ||
                 d.userEmail?.toLowerCase().includes(q) ||
                 d.siteName?.toLowerCase().includes(q) ||
+                d.tripId?.toLowerCase().includes(q) ||
                 d.tripMethod?.toLowerCase().includes(q) ||
                 String(d.startKm).includes(q) ||
                 String(d.endKm).includes(q) ||
@@ -597,6 +598,12 @@ export default function TripDetails() {
                                     placeholder="Vehicle Number"
                                     value={editTripData.vehicleNumber}
                                     onChangeText={(text) => setEditTripData({ ...editTripData, vehicleNumber: text })}
+                                />
+                                <TextInput
+                                    style={[styles.input, { marginBottom: 12, borderWidth: 1, borderColor: COLORS.border, borderRadius: 6, padding: 8 }]}
+                                    placeholder="Trip ID"
+                                    value={editTripData.tripId}
+                                    onChangeText={(text) => setEditTripData({ ...editTripData, tripId: text })}
                                 />
                                 <TextInput
                                     style={[styles.input, { marginBottom: 12, borderWidth: 1, borderColor: COLORS.border, borderRadius: 6, padding: 8 }]}
