@@ -12,6 +12,12 @@ const tabs = [
         iconActive: 'https://img.icons8.com/ios-filled/50/16a34a/home.png',
     },
     {
+        name: 'endkm',
+        title: 'Update Trip',
+        icon: 'https://img.icons8.com/ios-filled/50/6b7280/document.png',
+        iconActive: 'https://img.icons8.com/ios-filled/50/16a34a/document.png',
+    },
+    {
         name: 'trips',
         title: 'Trip Details',
         icon: 'https://img.icons8.com/ios-filled/50/6b7280/document.png',

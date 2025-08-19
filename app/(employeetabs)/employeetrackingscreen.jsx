@@ -37,7 +37,7 @@ const EmployeeTrackingScreen = () => {
                 Query.greaterThanEqual('createdAt', start),
                 Query.lessThanEqual('createdAt', end),
             ]);
-
+            
             const sorted = res.data.data
                 .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
