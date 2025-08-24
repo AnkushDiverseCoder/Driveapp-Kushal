@@ -1,20 +1,17 @@
 // Import required packages
-import { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
-    KeyboardAvoidingView,
-    Modal, Platform,
-    ScrollView,
-    Text, TextInput, TouchableOpacity,
-    View
+    View, Text, TextInput, TouchableOpacity,
+    ScrollView, Modal, Platform, KeyboardAvoidingView
 } from 'react-native';
-import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import DateTimePickerModal from 'react-native-modal-datetime-picker';
 
-import CustomAlert from '../../components/CustomAlert';
-import { useAuth } from '../../context/AuthContext';
-import clientService from '../../services/clientService';
 import tripService from '../../services/tripService';
 import vehicleService from '../../services/vechicleService';
+import clientService from '../../services/clientService';
+import CustomAlert from '../../components/CustomAlert';
+import { useAuth } from '../../context/AuthContext';
 
 const tripMethods = ['pickup', 'drop'];
 
@@ -54,7 +51,7 @@ export default function TravelForm() {
         };
         const fetchVehicles = async () => {
             const { data } = await vehicleService.listVehicles();
-            setVehicleList(data?.data.filter(v => v.labels === 'attached').map(v => ({
+            setVehicleList(data?.data.filter(v => v.labels !== 'attached').map(v => ({
                 number: v.vehicleNumber || '', type: v.vehicleType || ''
             })));
         };
@@ -116,7 +113,7 @@ export default function TravelForm() {
             distanceTravelled: 0,
             shiftTime: `${shiftHour}:${shiftMinute}`,
             userEmail: user.email,
-            attached: true,
+            attached: false,
         };
 
         try {

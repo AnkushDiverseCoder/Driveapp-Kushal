@@ -47,9 +47,7 @@ export default function TripDetails() {
         setError(null);
 
         try {
-            const currentUser = await authService.getCurrentUser();
-            const email = [currentUser?.email] || '';
-            const res = await TripService.fetchTripsByUserOnly(email);
+            const res = await TripService.listAttachedTripsPagination(pageNumber, PAGE_SIZE, date);
             const rawTrips = res.data || [];
 
             const emails = [...new Set(rawTrips.map(t => t.userEmail))];
