@@ -7,12 +7,14 @@ const dbId = process.env.EXPO_PUBLIC_APPWRITE_DB_ID;
 const colId = process.env.EXPO_PUBLIC_APPWRITE_COL_DAILY_ENTRY_FORM_ID;
 
 const dailyEntryFormService = {
+    // ✅ Fetch all entries (not paginated)
     async listDailyEntry() {
         const response = await databaseService.listAllDocuments(dbId, colId);
         if (response.error) return { error: response.error };
         return { data: response.data };
     },
 
+    // ✅ Pagination support
     async listDailyEntryPagination(page = 1, limit = 20) {
         try {
             const offset = (page - 1) * limit;
@@ -20,7 +22,7 @@ const dailyEntryFormService = {
             const response = await databaseService.listDocuments(dbId, colId, [
                 Query.limit(limit),
                 Query.offset(offset),
-                Query.orderDesc("$createdAt"),
+                Query.orderDesc("createdAt"), // Use custom createdAt field
             ]);
 
             if (response.error) return { error: response.error };
@@ -30,6 +32,7 @@ const dailyEntryFormService = {
         }
     },
 
+    // ✅ Create with meter reading validation
     async createDailyEntry(data) {
         try {
             if (!data.vehicleNumber || !data.meterReading) {
@@ -38,9 +41,10 @@ const dailyEntryFormService = {
                 };
             }
 
+            // Check last entry for vehicle
             const lastEntryResponse = await databaseService.listDocuments(dbId, colId, [
                 Query.equal("vehicleNumber", data.vehicleNumber),
-                Query.orderDesc("$createdAt"),
+                Query.orderDesc("createdAt"),
                 Query.limit(1),
             ]);
 
@@ -60,7 +64,13 @@ const dailyEntryFormService = {
                 }
             }
 
-            const createResponse = await databaseService.createDocument(dbId, colId, ID.unique(), data);
+            // Insert createdAt manually (important since you have custom field)
+            const payload = {
+                ...data,
+                createdAt: new Date().toISOString(),
+            };
+
+            const createResponse = await databaseService.createDocument(dbId, colId, ID.unique(), payload);
             if (createResponse.error) return { error: createResponse.error };
             return { data: createResponse };
         } catch (err) {
@@ -68,54 +78,77 @@ const dailyEntryFormService = {
         }
     },
 
+    // ✅ Fetch by Date only
     async fetchByDateOnly(startDateStr, endDateStr) {
-        const start = new Date(startDateStr);
-        const end = new Date(endDateStr || start);
-        end.setDate(end.getDate() + 1);
+        try {
+            if (!startDateStr || !endDateStr) return { data: [] };
 
-        const response = await databaseService.listAllDocuments(dbId, colId, [
-            Query.greaterThanEqual("$createdAt", start.toISOString()),
-            Query.lessThan("$createdAt", end.toISOString()),
-        ]);
+            const start = new Date(startDateStr);
+            const end = new Date(endDateStr);
+            end.setDate(end.getDate() + 1);
 
-        if (response.error) return { error: response.error };
-        return { data: response.data };
+            const response = await databaseService.listAllDocuments(dbId, colId, [
+                Query.greaterThanEqual("$createdAt", start.toISOString()),
+                Query.lessThan("$createdAt", end.toISOString()),
+            ]);
+
+            if (response.error) return { error: response.error };
+            return { data: response.data };
+        } catch (err) {
+            return { error: new Error("Failed fetchByDateOnly: " + err.message) };
+        }
     },
 
+    // ✅ Fetch by User only
     async fetchByUserOnly(emails) {
-        const emailArray = Array.isArray(emails) ? emails : [emails];
+        try {
+            if (!emails) return { data: [] };
 
-        const response = await databaseService.listAllDocuments(dbId, colId, [
-            Query.equal("userEmail", emailArray),
-        ]);
+            const emailArray = Array.isArray(emails) ? emails : [emails];
 
-        if (response.error) return { error: response.error };
-        return { data: response.data };
+            const response = await databaseService.listAllDocuments(dbId, colId, [
+                Query.equal("userEmail", emailArray),
+            ]);
+
+            if (response.error) return { error: response.error };
+            return { data: response.data };
+        } catch (err) {
+            return { error: new Error("Failed fetchByUserOnly: " + err.message) };
+        }
     },
 
+    // ✅ Fetch by User + Date
     async fetchByUserAndDate(emails, startDateStr, endDateStr) {
-        const emailArray = Array.isArray(emails) ? emails : [emails];
-        const start = new Date(startDateStr);
-        const end = new Date(endDateStr || start);
-        end.setDate(end.getDate() + 1);
+        try {
+            if (!emails || !startDateStr || !endDateStr) return { data: [] };
 
-        const queries = [
-            Query.equal("userEmail", emailArray),
-            Query.greaterThanEqual("$createdAt", start.toISOString()),
-            Query.lessThan("$createdAt", end.toISOString()),
-        ];
+            const emailArray = Array.isArray(emails) ? emails : [emails];
+            const start = new Date(startDateStr);
+            const end = new Date(endDateStr);
+            end.setDate(end.getDate() + 1);
 
-        const response = await databaseService.listAllDocuments(dbId, colId, queries);
+            const queries = [
+                Query.equal("userEmail", emailArray),
+                Query.greaterThanEqual("$createdAt", start.toISOString()),
+                Query.lessThan("$createdAt", end.toISOString()),
+            ];
 
-        if (response.error) return { error: response.error };
-        return { data: response.data };
+            const response = await databaseService.listAllDocuments(dbId, colId, queries);
+
+            if (response.error) return { error: response.error };
+            return { data: response.data };
+        } catch (err) {
+            return { error: new Error("Failed fetchByUserAndDate: " + err.message) };
+        }
     },
 
+
+    // ✅ Get latest reqTripCount for a user
     async getLatestReqTripCountByEmail(email) {
         try {
             const res = await databaseService.listDocuments(dbId, colId, [
                 Query.equal("userEmail", email),
-                Query.orderDesc("$createdAt"),
+                Query.orderDesc("createdAt"),
                 Query.limit(1),
             ]);
 
@@ -123,7 +156,7 @@ const dailyEntryFormService = {
 
             const latestEntry = res.documents?.[0];
             if (!latestEntry) {
-                return { data: null }; // No entries yet
+                return { data: null };
             }
 
             return { data: latestEntry.reqTripCount ?? null };

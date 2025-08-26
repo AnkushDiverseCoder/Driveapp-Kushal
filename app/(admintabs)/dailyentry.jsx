@@ -18,51 +18,29 @@ const accentColor = "#006400";
 
 const DailyEntryPage = () => {
     const [entries, setEntries] = useState([]);
-    const [loading, setLoading] = useState(false);
+    const [filteredData, setFilteredData] = useState([]);
+    const [loadingInitial, setLoadingInitial] = useState(false);
+    const [loadingMore, setLoadingMore] = useState(false);
     const [page, setPage] = useState(1);
     const [hasMore, setHasMore] = useState(true);
+
     const [searchQuery, setSearchQuery] = useState("");
-    const [filteredData, setFilteredData] = useState([]);
     const [sortOrder, setSortOrder] = useState("desc");
     const [filterDate, setFilterDate] = useState(null);
     const [vehicleType, setVehicleType] = useState("");
     const [showDatePicker, setShowDatePicker] = useState(false);
 
-    const fetchEntries = useCallback(async (pageNum = 1) => {
-        if (loading || !hasMore) return;
-        setLoading(true);
+    // --- Centralized filtering ---
+    const applyFilters = (data) => {
+        let filtered = data;
 
-        const res = await dailyEntryFormService.listDailyEntryPagination(pageNum, 20, sortOrder);
-        if (!res.error) {
-            const newData = res.data || [];
-            const emails = [...new Set(newData.map(entry => entry.userEmail))];
-            const userMap = await authService.getUsersByEmails(emails);
-            const enrichedData = newData.map(entry => ({
-                ...entry,
-                username: userMap[entry.userEmail]?.displayName ?? "Unknown",
-            }));
-
-            if (pageNum === 1) {
-                setEntries(enrichedData);
-            } else {
-                setEntries((prev) => [...prev, ...enrichedData]);
-            }
-
-            if (newData.length < 20) setHasMore(false);
-            setPage(pageNum);
+        if (searchQuery) {
+            filtered = filtered.filter(
+                (item) =>
+                    item.vehicleNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    item.userEmail.toLowerCase().includes(searchQuery.toLowerCase())
+            );
         }
-        setLoading(false);
-    }, [loading, hasMore, sortOrder]);
-
-    useEffect(() => {
-        fetchEntries(1);
-    }, [fetchEntries]);
-
-    useEffect(() => {
-        let filtered = entries.filter((item) =>
-            item.vehicleNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            item.userEmail.toLowerCase().includes(searchQuery.toLowerCase())
-        );
 
         if (filterDate) {
             const selectedDate = new Date(filterDate).toDateString();
@@ -75,49 +53,104 @@ const DailyEntryPage = () => {
             filtered = filtered.filter((item) => item.vehicleType === vehicleType);
         }
 
-        setFilteredData(filtered);
-    }, [searchQuery, entries, filterDate, vehicleType]);
-
-    const handleDelete = async (id) => {
-        Alert.alert(
-            "Confirm Delete",
-            "Are you sure you want to delete this entry?",
-            [
-                {
-                    text: "Cancel",
-                    style: "cancel"
-                },
-                {
-                    text: "Delete",
-                    onPress: async () => {
-                        try {
-                            setLoading(true);
-                            // Delete from daily entries
-                            const res = await dailyEntryFormService.deleteDailyEntry(id);
-                            if (res.error) {
-                                Alert.alert("Error", res.error);
-                            } else {
-                                // Remove the deleted entry from the state
-                                setEntries(prevEntries => prevEntries.filter(entry => entry.$id !== id));
-                                Alert.alert("Success", "Entry deleted successfully");
-
-                                // Now delete from employee global service
-                                const globalDeleteRes = await employeeGlobalService.deleteEntry(id); // Assuming deleteEntry is the method to delete from global service
-                                if (globalDeleteRes.error) {
-                                    Alert.alert("Warning", "Entry deleted, but failed to remove from global tracking: " + globalDeleteRes.error);
-                                }
-                            }
-                        } catch (error) {
-                            Alert.alert("Error", "Failed to delete entry",error);
-                        } finally {
-                            setLoading(false);
-                        }
-                    }
-                }
-            ]
-        );
+        return filtered;
     };
 
+    const fetchEntries = useCallback(
+        async (pageNum = 1, append = false) => {
+            if ((append && loadingMore) || (!append && loadingInitial)) return;
+
+            if (append) setLoadingMore(true);
+            else setLoadingInitial(true);
+
+            try {
+                const res = await dailyEntryFormService.listDailyEntryPagination(
+                    pageNum,
+                    20,
+                    sortOrder
+                );
+
+                if (!res.error) {
+                    const newData = res.data || [];
+                    const emails = [...new Set(newData.map((entry) => entry.userEmail))];
+                    const userMap = await authService.getUsersByEmails(emails);
+
+                    const enrichedData = newData.map((entry) => ({
+                        ...entry,
+                        username: userMap[entry.userEmail]?.displayName ?? "Unknown",
+                    }));
+
+                    setEntries((prev) => {
+                        const updated = append ? [...prev, ...enrichedData] : enrichedData;
+                        // filter AFTER updating
+                        setFilteredData(applyFilters(updated));
+                        return updated;
+                    });
+
+                    // 🔑 only stop if this page returned less than limit
+                    if (newData.length < 20) {
+                        setHasMore(false);
+                    }
+
+                    setPage(pageNum);
+                }
+            } catch (error) {
+                console.error("Error fetching entries:", error);
+            } finally {
+                if (append) setLoadingMore(false);
+                else setLoadingInitial(false);
+            }
+        },
+        [loadingInitial, loadingMore, sortOrder] // ✅ keep minimal dependencies
+    );
+
+
+    useEffect(() => {
+        fetchEntries(1, false);
+    }, [fetchEntries]);
+
+    // Re-apply filters whenever search/filter inputs change
+    useEffect(() => {
+        setFilteredData(applyFilters(entries));
+    }, [searchQuery, filterDate, vehicleType, entries]);
+
+    const handleDelete = async (id) => {
+        Alert.alert("Confirm Delete", "Are you sure you want to delete this entry?", [
+            { text: "Cancel", style: "cancel" },
+            {
+                text: "Delete",
+                onPress: async () => {
+                    try {
+                        setLoadingInitial(true);
+                        const res = await dailyEntryFormService.deleteDailyEntry(id);
+                        if (res.error) {
+                            Alert.alert("Error", res.error);
+                        } else {
+                            setEntries((prevEntries) => {
+                                const updated = prevEntries.filter((entry) => entry.$id !== id);
+                                setFilteredData(applyFilters(updated));
+                                return updated;
+                            });
+                            Alert.alert("Success", "Entry deleted successfully");
+
+                            const globalDeleteRes = await employeeGlobalService.deleteEntry(id);
+                            if (globalDeleteRes.error) {
+                                Alert.alert(
+                                    "Warning",
+                                    "Entry deleted, but failed to remove from global tracking: " +
+                                    globalDeleteRes.error
+                                );
+                            }
+                        }
+                    } catch (error) {
+                        Alert.alert("Error", "Failed to delete entry", error.message);
+                    } finally {
+                        setLoadingInitial(false);
+                    }
+                },
+            },
+        ]);
+    };
 
     const renderItem = ({ item }) => (
         <View
@@ -147,7 +180,7 @@ const DailyEntryPage = () => {
                     padding: 8,
                     borderRadius: 5,
                     marginTop: 8,
-                    alignSelf: 'flex-end'
+                    alignSelf: "flex-end",
                 }}
             >
                 <Text style={{ color: "#fff" }}>Delete</Text>
@@ -170,7 +203,9 @@ const DailyEntryPage = () => {
 
     return (
         <View style={{ flex: 1, backgroundColor: "#f0f0f0", padding: 16 }}>
-            <Text style={{ fontSize: 22, fontWeight: "bold", marginBottom: 12 }}>Daily Entries</Text>
+            <Text style={{ fontSize: 22, fontWeight: "bold", marginBottom: 12 }}>
+                Daily Entries
+            </Text>
 
             <View style={{ flexDirection: "row", marginBottom: 12 }}>
                 <TextInput
@@ -212,7 +247,9 @@ const DailyEntryPage = () => {
                     }}
                 >
                     <Text>
-                        {filterDate ? new Date(filterDate).toLocaleDateString() : "Select Date"}
+                        {filterDate
+                            ? new Date(filterDate).toLocaleDateString()
+                            : "Select Date"}
                     </Text>
                 </TouchableOpacity>
                 <TextInput
@@ -237,37 +274,54 @@ const DailyEntryPage = () => {
                 />
             )}
 
-            {filteredData.length === 0 && loading ? (
-                <ActivityIndicator size="large" color={accentColor} />
+            {loadingInitial && entries.length === 0 ? (
+                <ActivityIndicator
+                    size="large"
+                    color={accentColor}
+                    style={{ marginTop: 40 }}
+                />
             ) : (
                 <FlatList
                     data={filteredData}
-                    keyExtractor={(item) => item.$id}
+                    keyExtractor={(item, index) => item.$id || index.toString()}
                     renderItem={renderItem}
                     contentContainerStyle={{ paddingBottom: 80 }}
-                    ListFooterComponent={() => (
-                        <TouchableOpacity
-                            onPress={() => {
-                                if (hasMore && !loading) fetchEntries(page + 1);
-                            }}
-                            disabled={!hasMore || loading}
-                            style={{
-                                backgroundColor: hasMore && !loading ? accentColor : "#ccc",
-                                padding: 14,
-                                borderRadius: 8,
-                                alignItems: "center",
-                                marginTop: 16,
-                            }}
-                        >
-                            {loading ? (
-                                <ActivityIndicator size="small" color="#fff" />
-                            ) : (
-                                <Text style={{ color: "#fff", fontWeight: "bold" }}>
-                                    {hasMore ? "Load More" : "No More Entries"}
+                    ListFooterComponent={() => {
+                        if (!hasMore) {
+                            return (
+                                <Text
+                                    style={{
+                                        textAlign: "center",
+                                        padding: 16,
+                                        color: "#888",
+                                    }}
+                                >
+                                    No More Entries
                                 </Text>
-                            )}
-                        </TouchableOpacity>
-                    )}
+                            );
+                        }
+                        return (
+                            <TouchableOpacity
+                                onPress={() => fetchEntries(page + 1, true)}
+                                disabled={loadingMore}
+                                style={{
+                                    backgroundColor: loadingMore ? "#ccc" : accentColor,
+                                    padding: 14,
+                                    borderRadius: 8,
+                                    alignItems: "center",
+                                    marginTop: 16,
+                                }}
+                            >
+                                {loadingMore ? (
+                                    <ActivityIndicator size="small" color="#fff" />
+                                ) : (
+                                    <Text style={{ color: "#fff", fontWeight: "bold" }}>
+                                        Load More
+                                    </Text>
+                                )}
+                            </TouchableOpacity>
+                        );
+                    }}
                 />
             )}
         </View>
