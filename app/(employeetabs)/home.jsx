@@ -73,26 +73,42 @@ export default function Home() {
             if (!currentUser?.email) return;
 
             const today = new Date();
+            const userEmail = currentUser.email;
+
+            // Parallel fetches
+            const [
+                entryListRes,
+                tripResult,
+                monthlyTripRes,
+                globalEntryRes,
+                incompleteRes,
+                balanceRes
+            ] = await Promise.all([
+                dailyEntryFormService.listDailyEntry(),
+                tripService.fetchTripsByDate(userEmail, date.toISOString().split('T')[0]),
+                tripService.fetchTripsByMonth(userEmail, date),
+                employeeGlobalService.listEntries([
+                    Query.equal('userEmail', [userEmail.toLowerCase()]),
+                    Query.orderDesc('createdAt'),
+                    Query.limit(1)
+                ]),
+                tripService.getEmployeeIncompleteStatus(userEmail),
+                transactionService.getUserBalanceSummary(userEmail)
+            ]);
 
             // Daily entry check
-            const entryList = await dailyEntryFormService.listDailyEntry();
-            const foundTodayEntry = entryList?.data?.documents?.find((entry) => {
+            const foundTodayEntry = entryListRes?.data?.documents?.find((entry) => {
                 const entryDate = new Date(entry.$createdAt);
-                return isSameDay(today, entryDate) && entry.userEmail === currentUser.email;
+                return isSameDay(today, entryDate) && entry.userEmail === userEmail;
             });
             setDailyEntryDone(!!foundTodayEntry);
 
-            // Daily trips for selected date
-            const tripResult = await tripService.fetchTripsByDate(
-                currentUser.email,
-                date.toISOString().split('T')[0]
-            );
+            // Daily trips
             if (!tripResult.error) {
                 setMonthlyTrips({ [formatDateKey(date)]: tripResult.data.allTrips });
             }
 
             // Monthly trip summary
-            const monthlyTripRes = await tripService.fetchTripsByMonth(currentUser.email, date);
             if (!monthlyTripRes.error) {
                 setMonthlyTripSummary({
                     totalTrips: monthlyTripRes.data.totalTrips,
@@ -100,22 +116,15 @@ export default function Home() {
                 });
             }
 
-            // Global entries for balance km and latest meter
-            const globalEntryRes = await employeeGlobalService.listEntries([
-                Query.equal('userEmail', [currentUser.email.toLowerCase()]),
-                Query.orderDesc('createdAt'),
-                Query.limit(1)
-            ]);
+            // Global entries
             const latestGlobalEntry = globalEntryRes?.data?.data?.[0];
             setBalanceKm(latestGlobalEntry?.remainingDistance ?? null);
             setLatestMeterReading(latestGlobalEntry?.meterReading ?? null);
 
             // Incomplete status
-            const incompleteRes = await tripService.getEmployeeIncompleteStatus(currentUser.email);
             if (!incompleteRes.error) setIncompleteStatus(incompleteRes.data);
 
             // Running balance
-            const balanceRes = await transactionService.getUserBalanceSummary(currentUser.email);
             if (!balanceRes.error) setRunningBalance(balanceRes.data.balance);
 
         } catch (err) {
@@ -124,6 +133,8 @@ export default function Home() {
             setLoading(false);
         }
     };
+
+
 
     const handleDateConfirm = (date) => {
         setSelectedDate(date);
