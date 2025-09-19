@@ -32,7 +32,7 @@ const databaseService = {
 
     // List all documents using batching
     async listAllDocuments(databaseId, collectionId, baseQueries = []) {
-        const batchSize = 100;
+        const batchSize = 1000;
         let allDocuments = [];
         let offset = 0;
 

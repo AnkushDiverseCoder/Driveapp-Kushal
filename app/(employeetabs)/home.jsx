@@ -15,7 +15,7 @@ import tripService from '../../services/tripService';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../context/AuthContext';
 import employeeGlobalService from '../../services/employeeGlobalService';
-import { Query } from 'react-native-appwrite'
+import { Query } from 'react-native-appwrite';
 import transactionService from '../../services/transactionService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -29,13 +29,18 @@ function isSameDay(date1, date2) {
     );
 }
 
+function formatDateKey(dateStr) {
+    const d = new Date(dateStr);
+    return d.toDateString();
+}
+
 export default function Home() {
     const { user } = useAuth();
     const router = useRouter();
 
     const [dailyEntryDone, setDailyEntryDone] = useState(false);
-    const [tripData, setTripData] = useState(null);
-    const [monthlyTripCount, setMonthlyTripCount] = useState(0);
+    const [monthlyTrips, setMonthlyTrips] = useState({});
+    const [monthlyTripSummary, setMonthlyTripSummary] = useState({ totalTrips: 0, completedTripsCount: 0 });
     const [loading, setLoading] = useState(true);
     const [selectedDate, setSelectedDate] = useState(new Date());
     const [isDatePickerVisible, setDatePickerVisibility] = useState(false);
@@ -48,7 +53,7 @@ export default function Home() {
     const [latestMeterReading, setLatestMeterReading] = useState(null);
 
     useEffect(() => {
-        fetchProfile(new Date());
+        fetchProfile(selectedDate);
     }, []);
 
     useEffect(() => {
@@ -69,6 +74,7 @@ export default function Home() {
 
             const today = new Date();
 
+            // Daily entry check
             const entryList = await dailyEntryFormService.listDailyEntry();
             const foundTodayEntry = entryList?.data?.documents?.find((entry) => {
                 const entryDate = new Date(entry.$createdAt);
@@ -76,45 +82,41 @@ export default function Home() {
             });
             setDailyEntryDone(!!foundTodayEntry);
 
+            // Daily trips for selected date
             const tripResult = await tripService.fetchTripsByDate(
                 currentUser.email,
                 date.toISOString().split('T')[0]
             );
-
             if (!tripResult.error) {
-                setTripData(tripResult.data);
+                setMonthlyTrips({ [formatDateKey(date)]: tripResult.data.allTrips });
             }
 
+            // Monthly trip summary
+            const monthlyTripRes = await tripService.fetchTripsByMonth(currentUser.email, date);
+            if (!monthlyTripRes.error) {
+                setMonthlyTripSummary({
+                    totalTrips: monthlyTripRes.data.totalTrips,
+                    completedTripsCount: monthlyTripRes.data.completedTripsCount,
+                });
+            }
+
+            // Global entries for balance km and latest meter
             const globalEntryRes = await employeeGlobalService.listEntries([
                 Query.equal('userEmail', [currentUser.email.toLowerCase()]),
                 Query.orderDesc('createdAt'),
                 Query.limit(1)
             ]);
-
             const latestGlobalEntry = globalEntryRes?.data?.data?.[0];
-            const latestRemainingKm = latestGlobalEntry?.remainingDistance;
-            const latestMeter = latestGlobalEntry?.meterReading;
+            setBalanceKm(latestGlobalEntry?.remainingDistance ?? null);
+            setLatestMeterReading(latestGlobalEntry?.meterReading ?? null);
 
-            setBalanceKm(latestRemainingKm ?? null);
-            setLatestMeterReading(latestMeter ?? null);
-
-            const monthlyCountRes = await tripService.fetchMonthlyTripCount(currentUser.email);
-            if (!monthlyCountRes.error) {
-                setMonthlyTripCount(monthlyCountRes.data);
-            }
-
+            // Incomplete status
             const incompleteRes = await tripService.getEmployeeIncompleteStatus(currentUser.email);
-            console.log('Incomplete Status:', incompleteRes.data);
-            if (!incompleteRes.error) {
-                setIncompleteStatus(incompleteRes.data);
-            }
+            if (!incompleteRes.error) setIncompleteStatus(incompleteRes.data);
 
+            // Running balance
             const balanceRes = await transactionService.getUserBalanceSummary(currentUser.email);
-            if (!balanceRes.error) {
-                setRunningBalance(balanceRes.data.balance);
-            }
-
-
+            if (!balanceRes.error) setRunningBalance(balanceRes.data.balance);
 
         } catch (err) {
             console.error('Error loading profile:', err);
@@ -153,7 +155,7 @@ export default function Home() {
     const clearSessionStorage = async () => {
         try {
             await AsyncStorage.removeItem('userSession');
-            Alert.alert('Session Cleared', 'User  session has been cleared.');
+            Alert.alert('Session Cleared', 'User session has been cleared.');
         } catch (error) {
             console.error('Error clearing session:', error);
         }
@@ -169,28 +171,25 @@ export default function Home() {
 
     return (
         <ScrollView className="flex-1 bg-gray-100 px-4 pt-6 pb-12">
-            <View className="relative">
-                <View className="bg-[#064e3b] px-4 py-2 rounded-t-xl shadow-sm">
-                    <Text className="text-white text-center font-bold text-lg tracking-wide">
-                        User Information
-                    </Text>
-                </View>
+            {/* User Info */}
+            <View className="bg-[#064e3b] px-4 py-2 rounded-t-xl shadow-sm">
+                <Text className="text-white text-center font-bold text-lg tracking-wide">
+                    User Information
+                </Text>
             </View>
-
             <View className="bg-white rounded-b-xl px-4 py-4 mb-4 shadow-sm border border-gray-200 flex-row items-center">
                 <View className="w-12 h-12 rounded-full bg-[#064e3b] items-center justify-center mr-4">
-                    <Text className="text-white font-bold text-lg">
-                        {user?.name?.charAt(0).toUpperCase() || '?'}
-                    </Text>
+                    <Text className="text-white font-bold text-lg">{user?.displayName?.charAt(0).toUpperCase() || '?'}</Text>
                 </View>
                 <View className="flex-1">
                     <Text className="text-xs text-gray-500">Username</Text>
-                    <Text className="text-base font-semibold text-gray-900 mb-1">{user?.name}</Text>
+                    <Text className="text-base font-semibold text-gray-900 mb-1">{user?.displayName}</Text>
                     <Text className="text-xs text-gray-500">Email</Text>
                     <Text className="text-sm text-gray-800">{user?.email}</Text>
                 </View>
             </View>
 
+            {/* Incomplete Status */}
             {incompleteStatus && (
                 <View className="bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3 mb-4">
                     {incompleteStatus.dailyIncomplete && (
@@ -211,32 +210,55 @@ export default function Home() {
                 </View>
             )}
 
+            {/* Daily Entry & Date Picker */}
+            <View className="flex-row space-x-4 mb-6">
+                <View className="flex-1 bg-white rounded-xl p-5 shadow-sm border border-gray-200 mr-4">
+                    <Text className="text-sm text-gray-500 mb-1">Daily Entry Status</Text>
+                    <Text className={`text-base font-semibold ${dailyEntryDone ? 'text-green-700' : 'text-red-600'}`}>
+                        {dailyEntryDone ? 'Completed' : 'Not Done'}
+                    </Text>
+                </View>
+                <TouchableOpacity
+                    onPress={() => setDatePickerVisibility(true)}
+                    className="flex-1 bg-white rounded-xl p-5 shadow-sm border border-gray-200"
+                >
+                    <Text className="text-sm text-gray-500 mb-1">Selected Date</Text>
+                    <Text className="text-base font-medium text-gray-800">
+                        {selectedDate.toDateString().split(' ').slice(1).join(' ')}
+                    </Text>
+                </TouchableOpacity>
+            </View>
 
+            <DateTimePickerModal
+                isVisible={isDatePickerVisible}
+                mode="date"
+                date={selectedDate}
+                onConfirm={handleDateConfirm}
+                onCancel={() => setDatePickerVisibility(false)}
+            />
+
+            {/* Monthly Trip Summary */}
             <View className="bg-white rounded-2xl p-5 shadow-sm border border-gray-200 mb-6">
                 <Text className="text-lg font-semibold text-gray-800 mb-4">Monthly Trip Summary</Text>
                 <View className="flex-row flex-wrap justify-between">
                     <View className="w-[48%] bg-gray-50 px-3 py-4 rounded-md items-center justify-center mb-4">
                         <Text className="text-xs text-gray-500 mb-1">Total Trips This Month</Text>
-                        <Text className="text-2xl font-bold text-[#064e3b]">{monthlyTripCount}</Text>
+                        <Text className="text-2xl font-bold text-[#064e3b]">{monthlyTripSummary.totalTrips}</Text>
                     </View>
                     <View className="w-[48%] bg-gray-50 px-3 py-4 rounded-md items-center justify-center mb-4">
-                        <Text className="text-xs text-gray-500 mb-1">Todays Remaining KM</Text>
-                        <Text className="text-xl font-bold text-[#064e3b]">
-                            {balanceKm !== null ? `${balanceKm} km` : 'N/A'}
-                        </Text>
-                    </View>
-                    <View className="w-full bg-gray-50 px-4 py-4 rounded-xl mb-6 border border-gray-200 shadow-sm">
-                        <Text className="text-xs text-gray-500 mb-1">Your Current Balance</Text>
-                        <Text className="text-2xl font-bold text-[#064e3b]">
-                            ₹ {runningBalance !== null ? runningBalance.toFixed(2) : 'Loading...'}
-                        </Text>
+                        <Text className="text-xs text-gray-500 mb-1">Completed Trips</Text>
+                        <Text className="text-2xl font-bold text-[#064e3b]">{monthlyTripSummary.completedTripsCount}</Text>
                     </View>
                 </View>
 
-                <View className="mt-2">
-                    <Text className="text-xs text-gray-600 mb-1">
-                        Check your current meter vs available kilometers
+                {/* Running Balance & Meter Input */}
+                <View className="w-full bg-gray-50 px-4 py-4 rounded-xl mb-6 border border-gray-200 shadow-sm">
+                    <Text className="text-xs text-gray-500 mb-1">Your Current Balance</Text>
+                    <Text className="text-2xl font-bold text-[#064e3b]">
+                        ₹ {runningBalance !== null ? runningBalance.toFixed(2) : 'Loading...'}
                     </Text>
+
+                    <Text className="text-xs text-gray-600 mt-3 mb-1">Check your current meter vs available kilometers</Text>
                     <View className="mb-2">
                         <Text className="text-xs text-gray-500">Latest Meter Reading:</Text>
                         <Text className="text-sm font-medium">{latestMeterReading ?? 'N/A'}</Text>
@@ -268,94 +290,43 @@ export default function Home() {
                 </View>
             </View>
 
-            <View className="flex-row space-x-4 mb-6">
-                <View className="flex-1 bg-white rounded-xl p-5 shadow-sm border border-gray-200 mr-4">
-                    <Text className="text-sm text-gray-500 mb-1">Daily Entry Status</Text>
-                    <Text className={`text-base font-semibold ${dailyEntryDone ? 'text-green-700' : 'text-red-600'}`}>
-                        {dailyEntryDone ? 'Completed' : 'Not Done'}
-                    </Text>
-                </View>
-                <TouchableOpacity
-                    onPress={() => setDatePickerVisibility(true)}
-                    className="flex-1 bg-white rounded-xl p-5 shadow-sm border border-gray-200"
-                >
-                    <Text className="text-sm text-gray-500 mb-1">Selected Date</Text>
-                    <Text className="text-base font-medium text-gray-800">
-                        {selectedDate.toDateString().split(' ').slice(1).join(' ')}
-                    </Text>
-                </TouchableOpacity>
-            </View>
-
-            <DateTimePickerModal
-                isVisible={isDatePickerVisible}
-                mode="date"
-                date={selectedDate}
-                onConfirm={handleDateConfirm}
-                onCancel={() => setDatePickerVisibility(false)}
-            />
-
-            {tripData && (
-                <View className="bg-white rounded-2xl p-5 shadow-sm border border-gray-200 mb-6">
-                    <Text className="text-lg font-semibold text-gray-800 mb-4">Trip Summary</Text>
-                    <View className="flex-row justify-between mb-3">
-                        <Text className="text-gray-600">Total Trips</Text>
-                        <View className="bg-green-100 px-3 py-1 rounded-full">
-                            <Text className="text-green-800 font-bold">{tripData.totalTrips}</Text>
-                        </View>
+            {/* Trips Table for Selected Date */}
+            {Object.keys(monthlyTrips).map((dateKey) => (
+                <View key={dateKey} className="mb-4">
+                    <View className="bg-[#064e3b] px-4 py-2 rounded-t-xl shadow-sm">
+                        <Text className="text-white text-center font-bold text-lg tracking-wide">{dateKey}</Text>
                     </View>
-                    <View className="flex-row justify-between">
-                        <Text className="text-gray-600">Completed</Text>
-                        <View className="bg-green-100 px-3 py-1 rounded-full">
-                            <Text className="text-green-800 font-bold">{tripData.completedTripsCount}</Text>
-                        </View>
-                    </View>
-                </View>
-            )}
-
-            {tripData?.allTrips?.length > 0 && (
-                <>
-                    <View className="relative">
-                        <View className="bg-[#064e3b] px-4 py-2 rounded-t-xl shadow-sm">
-                            <Text className="text-white text-center font-bold text-lg tracking-wide">
-                                Trip Details
+                    {monthlyTrips[dateKey].map((trip) => (
+                        <View
+                            key={trip.$id}
+                            className={`bg-white border ${trip.edited ? 'border-green-500' : 'border-gray-200'} shadow-sm px-4 py-4`}
+                        >
+                            <Text className="font-semibold text-gray-800 mb-3">Trip #{trip.tripId}</Text>
+                            <View className="flex-row flex-wrap justify-between">
+                                {[
+                                    ['Vehicle', trip.vehicleNumber],
+                                    ['Site', trip.siteName],
+                                    ['Method', trip.tripMethod],
+                                    ['Start Km', trip.startKm],
+                                    ['End Km', trip.endKm],
+                                    ['Distance', `${trip.distanceTravelled} km`],
+                                    ['Escort', trip.escort ? 'Yes' : 'No'],
+                                ].map(([label, value], i) => (
+                                    <View key={i} className="w-[48%] mb-3 bg-gray-50 px-3 py-2 rounded-md">
+                                        <Text className="text-xs text-gray-500">{label}</Text>
+                                        <Text className="text-sm font-medium text-gray-800">{value}</Text>
+                                    </View>
+                                ))}
+                            </View>
+                            <Text className="text-xs text-gray-400 text-right mt-2">
+                                {new Date(trip.$createdAt).toLocaleString()}
                             </Text>
                         </View>
-                    </View>
-                    <View className="space-y-4">
-                        {tripData.allTrips.map((trip) => (
-                            <View
-                                key={trip.$id}
-                                className={`bg-white border ${trip.edited ? 'border-green-500' : 'border-gray-200'} shadow-sm px-4 py-4`}
-                            >
-                                <Text className="font-semibold text-gray-800 mb-3">Trip #{trip.tripId}</Text>
-                                <View className="flex-row flex-wrap justify-between">
-                                    {[
-                                        ['Vehicle', trip.vehicleNumber],
-                                        ['Site', trip.siteName],
-                                        ['Method', trip.tripMethod],
-                                        ['Start Km', trip.startKm],
-                                        ['End Km', trip.endKm],
-                                        ['Distance', `${trip.distanceTravelled} km`],
-                                        ['Escort', trip.escort ? 'Yes' : 'No'],
-                                    ].map(([label, value], i) => (
-                                        <View
-                                            key={i}
-                                            className="w-[48%] mb-3 bg-gray-50 px-3 py-2 rounded-md"
-                                        >
-                                            <Text className="text-xs text-gray-500">{label}</Text>
-                                            <Text className="text-sm font-medium text-gray-800">{value}</Text>
-                                        </View>
-                                    ))}
-                                </View>
-                                <Text className="text-xs text-gray-400 text-right mt-2">
-                                    {new Date(trip.$createdAt).toLocaleString()}
-                                </Text>
-                            </View>
-                        ))}
-                    </View>
-                </>
-            )}
+                    ))}
+                </View>
+            ))}
 
+            {/* Navigation Buttons */}
             <TouchableOpacity
                 onPress={() => router.push('/(employeetabs)/auth/modifyPassword')}
                 className="mt-10 bg-green-900 py-4 rounded-xl shadow-sm"
@@ -370,7 +341,7 @@ export default function Home() {
             </TouchableOpacity>
             <TouchableOpacity
                 onPress={clearSessionStorage}
-                className="mt-6 bg-red-600 py-4 rounded-xl shadow-sm"
+                className="mt-6 bg-red-600 py-4 mb-10 rounded-xl shadow-sm"
             >
                 <Text className="text-white text-center font-bold text-base">Clear Session Storage</Text>
             </TouchableOpacity>
