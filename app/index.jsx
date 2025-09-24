@@ -11,8 +11,6 @@ import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../context/AuthContext';
 import authService from '../services/authService';
-import 'react-native-reanimated';
-
 
 export default function WelcomeScreen() {
   const router = useRouter();
