@@ -160,6 +160,38 @@ const tripService = {
         };
     },
 
+    async fetchTripsByMonth(userEmail, selectedDate) {
+        // Use selectedDate to get year/month
+        const year = selectedDate.getFullYear();
+        const month = selectedDate.getMonth(); // 0-based
+
+        // Start = first day 00:00:00
+        const start = new Date(year, month, 1, 0, 0, 0, 0);
+        // End = last day 23:59:59.999
+        const end = new Date(year, month + 1, 0, 23, 59, 59, 999);
+
+        const response = await databaseService.listAllDocuments(dbId, colId, [
+            Query.equal("userEmail", userEmail),
+            Query.greaterThanEqual("$createdAt", start.toISOString()),
+            Query.lessThanEqual("$createdAt", end.toISOString()),
+        ]);
+
+        if (response.error) return { error: response.error };
+
+        const completedTrips = response.data.filter(
+            (t) => t.startKm > 0 && t.endKm > 0
+        );
+
+        return {
+            data: {
+                totalTrips: response.data.length,
+                completedTripsCount: completedTrips.length,
+                completedTrips,
+                allTrips: response.data,
+            },
+        };
+    },
+
     async fetchLatestUserTrip(userEmail) {
         const response = await databaseService.listDocuments(dbId, colId, [
             Query.equal("userEmail", userEmail),
