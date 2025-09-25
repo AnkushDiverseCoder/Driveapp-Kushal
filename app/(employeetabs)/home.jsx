@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
     View,
     Text,
@@ -18,6 +18,7 @@ import employeeGlobalService from '../../services/employeeGlobalService';
 import { Query } from 'react-native-appwrite';
 import transactionService from '../../services/transactionService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { debounce } from 'lodash';
 
 const ACCENT_COLOR = '#064e3b';
 
@@ -35,7 +36,7 @@ function formatDateKey(dateStr) {
 }
 
 export default function Home() {
-    const { user } = useAuth();
+    const { user } = useAuth(); // ✅ use cached user
     const router = useRouter();
 
     const [dailyEntryDone, setDailyEntryDone] = useState(false);
@@ -57,82 +58,93 @@ export default function Home() {
     }, []);
 
     useEffect(() => {
-        if (latestMeterReading !== null && balanceKm !== null && currentMeterInput !== '') {
-            const totalAvailableKm = parseFloat(latestMeterReading) + parseFloat(balanceKm);
-            const diff = totalAvailableKm - parseFloat(currentMeterInput);
-            setRemainingAfterInput(isNaN(diff) ? null : diff);
-        } else {
-            setRemainingAfterInput(null);
-        }
-    }, [currentMeterInput, balanceKm, latestMeterReading]);
+        handleDebouncedMeterCalc(currentMeterInput);
+    }, [currentMeterInput, latestMeterReading, balanceKm]);
+
+    const handleDebouncedMeterCalc = useCallback(
+        debounce((input) => {
+            if (latestMeterReading !== null && balanceKm !== null && input !== '') {
+                const totalAvailableKm = parseFloat(latestMeterReading) + parseFloat(balanceKm);
+                const diff = totalAvailableKm - parseFloat(input);
+                setRemainingAfterInput(isNaN(diff) ? null : diff);
+            } else {
+                setRemainingAfterInput(null);
+            }
+        }, 500),
+        [latestMeterReading, balanceKm]
+    );
 
     const fetchProfile = async (date) => {
-        try {
-            setLoading(true);
-            const currentUser = await authService.getCurrentUser();
-            if (!currentUser?.email) return;
+    try {
+        setLoading(true);
 
-            const today = new Date();
-            const userEmail = currentUser.email;
+        if (!user?.email) return;
 
-            // Parallel fetches
-            const [
-                entryListRes,
-                tripResult,
-                monthlyTripRes,
-                globalEntryRes,
-                incompleteRes,
-                balanceRes
-            ] = await Promise.all([
-                dailyEntryFormService.listDailyEntry(),
-                tripService.fetchTripsByDate(userEmail, date.toISOString().split('T')[0]),
-                tripService.fetchTripsByMonth(userEmail, date),
-                employeeGlobalService.listEntries([
-                    Query.equal('userEmail', [userEmail.toLowerCase()]),
-                    Query.orderDesc('createdAt'),
-                    Query.limit(1)
-                ]),
-                tripService.getEmployeeIncompleteStatus(userEmail),
-                transactionService.getUserBalanceSummary(userEmail)
-            ]);
+        const today = new Date();
+        const formattedDate = date.toISOString().split('T')[0];
 
-            // Daily entry check
-            const foundTodayEntry = entryListRes?.data?.documents?.find((entry) => {
+        const results = await Promise.allSettled([
+            dailyEntryFormService.listDailyEntry(),
+            tripService.fetchTripsByDate(user.email, formattedDate),
+            tripService.fetchTripsByMonth(user.email, date),
+            employeeGlobalService.listEntries([
+                Query.equal('userEmail', [user.email.toLowerCase()]),
+                Query.orderDesc('createdAt'),
+                Query.limit(1)
+            ]),
+            tripService.getEmployeeIncompleteStatus(user.email),
+            // 🗑 Removed: transactionService.getUserBalanceSummary(user.email)
+        ]);
+
+        const [
+            entryListResult,
+            tripResult,
+            monthlyTripRes,
+            globalEntryRes,
+            incompleteRes
+        ] = results;
+
+        // ✅ Daily Entry
+        if (entryListResult.status === 'fulfilled') {
+            const entryList = entryListResult.value;
+            const foundTodayEntry = entryList?.data?.documents?.find((entry) => {
                 const entryDate = new Date(entry.$createdAt);
-                return isSameDay(today, entryDate) && entry.userEmail === userEmail;
+                return isSameDay(today, entryDate) && entry.userEmail === user.email;
             });
             setDailyEntryDone(!!foundTodayEntry);
+        }
 
-            // Daily trips
-            if (!tripResult.error) {
-                setMonthlyTrips({ [formatDateKey(date)]: tripResult.data.allTrips });
-            }
+        // ✅ Daily Trips
+        if (tripResult.status === 'fulfilled' && !tripResult.value.error) {
+            setMonthlyTrips({ [formatDateKey(date)]: tripResult.value.data.allTrips });
+        }
 
-            // Monthly trip summary
-            if (!monthlyTripRes.error) {
-                setMonthlyTripSummary({
-                    totalTrips: monthlyTripRes.data.totalTrips,
-                    completedTripsCount: monthlyTripRes.data.completedTripsCount,
-                });
-            }
+        // ✅ Monthly Trip Summary
+        if (monthlyTripRes.status === 'fulfilled' && !monthlyTripRes.value.error) {
+            setMonthlyTripSummary({
+                totalTrips: monthlyTripRes.value.data.totalTrips,
+                completedTripsCount: monthlyTripRes.value.data.completedTripsCount,
+            });
+        }
 
-            // Global entries
-            const latestGlobalEntry = globalEntryRes?.data?.data?.[0];
+        // ✅ Meter and Balance
+        if (globalEntryRes.status === 'fulfilled') {
+            const latestGlobalEntry = globalEntryRes.value?.data?.data?.[0];
             setBalanceKm(latestGlobalEntry?.remainingDistance ?? null);
             setLatestMeterReading(latestGlobalEntry?.meterReading ?? null);
-
-            // Incomplete status
-            if (!incompleteRes.error) setIncompleteStatus(incompleteRes.data);
-
-            // Running balance
-            if (!balanceRes.error) setRunningBalance(balanceRes.data.balance);
-
-        } catch (err) {
-            console.error('Error loading profile:', err);
-        } finally {
-            setLoading(false);
         }
-    };
+
+        // ✅ Incomplete Status
+        if (incompleteRes.status === 'fulfilled' && !incompleteRes.value.error) {
+            setIncompleteStatus(incompleteRes.value.data);
+        }
+
+    } catch (err) {
+        console.error('Unexpected error loading profile:', err);
+    } finally {
+        setLoading(false);
+    }
+};
 
 
 
