@@ -28,10 +28,12 @@
       "autoIncrement": true,
       "distribution": "store",
       "android": {
-        "buildType": "app-bundle"
+        "buildType": "app-bundle",
+        "gradleCommand": ":app:bundleRelease"
       },
       "env": {
-        "NODE_ENV": "production"
+        "NODE_ENV": "production",
+        "EXPO_PUBLIC_GRADLE_PROPS": "android.experimental.legacyPageSize=true"
       }
     }
   },

@@ -19,6 +19,7 @@
       }
     },
     "android": {
+      "targetSdkVersion": 34,
       "adaptiveIcon": {
         "foregroundImage": "./assets/driverLogo.png",
         "backgroundColor": "#ffffff"
@@ -35,7 +36,12 @@
         }
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.lucifer1902.Driveapp2"
+      "package": "com.lucifer1902.Driveapp2",
+      "gradleProperties": {
+        "android.experimental.legacyPageSize": "true",
+        "android.useAndroidX": "true",
+        "android.enableJetifier": "true"
+      }
     },
     "web": {
       "bundler": "metro",
@@ -63,7 +69,9 @@
           "isAndroidBackgroundLocationEnabled": true,
           "isAndroidForegroundServiceEnabled": true
         }
-      ]
+      ],
+      "expo-font",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true
