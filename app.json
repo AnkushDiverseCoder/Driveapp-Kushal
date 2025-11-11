@@ -13,12 +13,26 @@
       "bundleIdentifier": "com.lucifer1902.Driveapp2",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
+      },
+      "config": {
+        "googleMapsApiKey": "YOUR_IOS_GOOGLE_MAPS_API_KEY"
       }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/driverLogo.png",
         "backgroundColor": "#ffffff"
+      },
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "FOREGROUND_SERVICE",
+        "ACCESS_BACKGROUND_LOCATION"
+      ],
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyAPO0jhogONV5axMezWA0rjurIR4NPAnys"
+        }
       },
       "edgeToEdgeEnabled": true,
       "package": "com.lucifer1902.Driveapp2"
@@ -37,6 +51,17 @@
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#ffffff"
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow Kushal Partner to access your location for work tracking.",
+          "locationAlwaysPermission": "Allow Kushal Partner to track your location in the background for continuous work monitoring.",
+          "locationWhenInUsePermission": "Allow Kushal Partner to access your location while using the app.",
+          "isIosBackgroundLocationEnabled": true,
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
         }
       ]
     ],

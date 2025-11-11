@@ -1,6 +1,5 @@
 // services/tripService.js
-// ✅ Optimized & Structured Version (for copy-paste)
-// ⚠️ Functionality unchanged — only cleaned, documented, and optimized
+// ✅ FIXED: Admin and Employee now use consistent date ranges (midnight to midnight)
 
 import { ID, Query } from "react-native-appwrite";
 import databaseService from "./databaseService";
@@ -331,29 +330,22 @@ const tripService = {
         };
     },
 
+    // ✅ FIXED: Now uses standard midnight-to-midnight date ranges
     async fetchUserTripCounts(mode = "today", dateParam = null) {
         let start, end;
 
         if (mode === "month") {
+            // Month mode: First day 00:00:00 to last day 23:59:59.999
             const date = dateParam ? new Date(dateParam) : new Date();
-            start = new Date(date.getFullYear(), date.getMonth(), 1, 7, 0, 0, 0);
-            end = new Date(date.getFullYear(), date.getMonth() + 1, 1, 6, 59, 59, 999);
+            start = new Date(date.getFullYear(), date.getMonth(), 1, 0, 0, 0, 0);
+            end = new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59, 999);
         } else {
+            // ✅ FIXED: Today mode now uses midnight to midnight (same as employee screen)
             const ref = dateParam ? new Date(dateParam) : new Date();
-            const dayStart = new Date(
-                ref.getFullYear(),
-                ref.getMonth(),
-                ref.getDate(),
-                7,
-                0,
-                0,
-                0
-            );
-            if (ref < dayStart) dayStart.setDate(dayStart.getDate() - 1);
-            start = new Date(dayStart);
-            end = new Date(dayStart);
+            start = new Date(ref.getFullYear(), ref.getMonth(), ref.getDate(), 0, 0, 0, 0);
+            end = new Date(start);
             end.setDate(end.getDate() + 1);
-            end.setHours(6, 59, 59, 999);
+            end.setMilliseconds(-1); // 23:59:59.999
         }
 
         // Fetch trips

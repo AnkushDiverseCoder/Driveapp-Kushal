@@ -14,7 +14,8 @@ const config = {
         clientList:process.env.EXPO_PUBLIC_APPWRITE_COL_CLIENT_ENTRY,
         employeeComplaint:process.env.EXPO_PUBLIC_APPWRITE_COL_USER_COMPLAINT,
         employeeGlobalData:process.env.EXPO_PUBLIC_APPWRITE_COL_EMPLOYEE_GLOBAL_DATA,
-        transaction:process.env.EXPO_PUBLIC_APPWRITE_COL_TRANSACTION
+        transaction:process.env.EXPO_PUBLIC_APPWRITE_COL_TRANSACTION,
+        location:process.env.EXPO_PUBLIC_APPWRITE_COL_EMPLOYEE_GLOBAL_DATA_LOCATION
     }
 };
 

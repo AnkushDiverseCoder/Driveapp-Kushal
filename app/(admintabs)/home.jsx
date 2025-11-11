@@ -369,6 +369,9 @@ export default function AdminDashboard() {
         <TouchableOpacity onPress={() => router.replace('/(admintabs)/component/transaction/CreateTransactionScreen')} style={styles.btn}>
           <Text style={styles.btnText}>Create Transaction</Text>
         </TouchableOpacity>
+        <TouchableOpacity onPress={() => router.replace('/(admintabs)/adminemployeetracker')} style={styles.btn}>
+          <Text style={styles.btnText}>Employee Tracker</Text>
+        </TouchableOpacity>
       </View>
     </ScrollView>
   );

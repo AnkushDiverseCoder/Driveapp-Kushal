@@ -17,14 +17,16 @@
     "preview": {
       "distribution": "internal",
       "android": {
-        "buildType": "apk"
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleRelease"
       },
       "env": {
-        "NODE_ENV": "preview"
+        "NODE_ENV": "production"
       }
     },
     "production": {
       "autoIncrement": true,
+      "distribution": "store",
       "android": {
         "buildType": "app-bundle"
       },
